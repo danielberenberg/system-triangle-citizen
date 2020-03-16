@@ -12,6 +12,7 @@ import site
 import heapq
 import shlex
 import shutil
+import secrets
 import warnings
 import argparse
 from enum import Enum
@@ -77,10 +78,11 @@ class DefaultArguments(Enum):
     constraint_types   = ['dist', 'theta', 'omega', 'phi']
     score_function_dir = _DEFAULT_SCORE_FILES 
     cluster            = True 
+    overwrite          = False
     mode               = 0
     K                  = 50
     N                  = 150
-    partition          = 'bnl'
+    partition          = 'ccb'
     nodes              = 5
 
 DEFAULT_PARAMS = {param.name: param.value for param in DefaultArguments}
@@ -90,15 +92,18 @@ def arguments():
     """Configure commandline parser"""
     parser = argparse.ArgumentParser(description="Model structure with npz constraints using PyRosetta.")
     
-    # input possibilities
+    # I/O 
     parser.add_argument("--io-list", dest='i_o', type=filelist,
-                          help="Two column (input npz/output dir) filelist")
+                          help="File-List of the form IN\sOUT\n",
+                          metavar="FILE")
 
     parser.add_argument("-io", dest='i_o', help="InputNPZ OutputDirectory",
-                          type=io_exists)
+                          type=io_exists, metavar="IN OUT")
+    parser.add_argument("--overwrite", help="Overwrite paths", action='store_true')
     
     # cluster arguments
-    parser.add_argument("-N", "--cluster-nodes", type=nat, dest='nodes', help="Number of cluster nodes to scale") 
+    parser.add_argument("-N", "--num-workers", 
+                        type=nat, dest='nodes', help="Number of parallel workers.") 
     parser.add_argument("-p", "--cluster-partition",
                         type=str, dest='partition',
                         choices=['ccb', 'bnl'], help="SLURM partition")
@@ -136,7 +141,7 @@ def arguments():
 #########################
 #>>>>> Rosetta functions 
 #########################
-def minimize(seq, rst, params):
+def minimize(seq, input_npz, params):
     """
     Worker fully encapsulating the minimization protocol.
 
@@ -151,10 +156,24 @@ def minimize(seq, rst, params):
     """
     pyrosetta = import_module("pyrosetta")
     pyrosetta.distributed.init(params['initargs'])
-    os.environ['PYROSETTA_BOOTED'] = "yes"
+
+    npz = np.load(input_npz, allow_pickle=True)
+    rst = rosetta_utils.generate_constraints(npz, **params)
 
     model_id = params.get("model_id") or secrets.token_hex(16)
-    print(f"[{model_id}] BEGIN MINIMIZE")
+    dumpfile = str(os.path.join(params['models'], "model_" + model_id + '.pdb')) 
+
+    prefix = f"[{Path(params['TDIR']).name}-{model_id}]"
+    print(f"{prefix} BEGIN MINIMIZE")
+
+    centroid_score_function = pyrosetta.create_score_function('cen_std')
+    if Path(dumpfile).exists() and not params.get('overwrite') is False:
+        pose = rosetta_utils.load_pose(dumpfile)
+        score = centroid_score_function(pose)
+        print(f"{prefix} END MINIMIZE")
+        return {'path': dumpfile, 'score': score, 'model_id': model_id}
+
+
 
     #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
     #| setup ScoreFunctions and Mover objects |#
@@ -205,25 +224,23 @@ def minimize(seq, rst, params):
     # mutate GLY -> ALA so every AA has a CB
     with rosetta_utils.ContextMutator("G", "A", pose) as cm:
         for interval in zip(schedule[:-1], schedule[1:]):
-            print(f"[{model_id}] begin range {interval}")
+            print(f"{prefix} begin range {interval}")
             rosetta_utils.add_constraints(pose, rst, interval, seq, params['TDIR'])
             repeat_mover.apply(pose)
             min_mover_cart.apply(pose)
             rosetta_utils.remove_clash(sf_vdw, min_mover1, pose)
-            print(f"[{model_id}] done range {interval}")
+            print(f"{prefix} done range {interval}")
     
-    centroid_score_function = pyrosetta.create_score_function('cen_std')
-    score = centroid_score_function(pose)
 
-    print(f"[{model_id}] Centroid score: {score}")
-    dumpfile = str(os.path.join(params['models'], "model_" + model_id + '.pdb')) 
+    score = centroid_score_function(pose)
+    print(f"{prefix} Centroid score: {score}")
     pose.dump_pdb(dumpfile)
 
-    print(f"[{model_id}] END MINIMIZE")
+    print(f"{prefix} END MINIMIZE")
     return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
 
-def relax(filename, rst, params):
+def relax(filename, input_npz, params):
     """Encapsulates the relax protocol
     
     args:
@@ -233,10 +250,25 @@ def relax(filename, rst, params):
     """
     pyrosetta = import_module("pyrosetta")
     pyrosetta.distributed.init(params['initargs'])
-    os.environ['PYROSETTA_BOOTED'] = "yes"
+    
+    npz = np.load(input_npz, allow_pickle=True)
+    rst = rosetta_utils.generate_constraints(npz, **params)
 
     model_id = params.get("model_id") or secrets.token_hex(16)
-    print(f"[{model_id}] BEGIN RELAX")
+    prefix = f"[{Path(params['TDIR']).name}-{model_id}]"
+    print(f"{prefix} BEGIN RELAX")
+
+    sf_fa = pyrosetta.create_score_function('ref2015')
+    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.atom_pair_constraint, 5)
+    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.dihedral_constraint, 1)
+    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.angle_constraint, 1)
+        
+    dumpfile = str(os.path.join(params['models'], 'relax_' + model_id + '.pdb'))
+    if Path(dumpfile).exists() and params.get('overwrite') is False:
+        pose = rosetta_utils.load_pose(dumpfile, from_sequence=False)
+        score = sf_fa(pose)
+        print(f"{prefix} END RELAX")
+        return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
     def _setup_movemap(bb=True, chi=False, jump=True):
         mmap = pyrosetta.MoveMap()
@@ -247,11 +279,6 @@ def relax(filename, rst, params):
 
     pose = rosetta_utils.load_pose(filename)
 
-    sf_fa = pyrosetta.create_score_function('ref2015')
-    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.atom_pair_constraint, 5)
-    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.dihedral_constraint, 1)
-    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.angle_constraint, 1)
-        
     mmap = _setup_movemap(bb=True, chi=True, jump=True)
     relax = pyrosetta.rosetta.protocols.relax.FastRelax()
     relax.set_scorefxn(sf_fa)
@@ -270,11 +297,9 @@ def relax(filename, rst, params):
     relax.apply(pose)
 
     score = sf_fa(pose)
-    print(f"[{model_id}] FastRelax fa_standard score: {score}")
-    dumpfile = str(os.path.join(params['models'], 'relax_' + model_id + '.pdb'))
+    print(f"{prefix} FastRelax fa_standard score: {score}")
     pose.dump_pdb(dumpfile)
-    print(f"[{model_id}] END RELAX")
-
+    print(f"{prefix} END RELAX")
     return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
 
@@ -317,8 +342,9 @@ class Factory(object):
 def get_cluster(partition=None, distributed=False):
     params = {}
     if distributed:
-        params['cores'] = 20
-        params['memory'] = '25GB'
+        params['processes'] = 20
+        params['cores'] = 3 
+        params['memory'] = '160GB'
         params['queue'] = partition
         clust = SLURMCluster
     else:
@@ -390,9 +416,12 @@ def make_models(input_npz, output_dir, params):
     returns:
         :(str) - path to final model
     """
+    print(input_npz, output_dir)
+
     tmpdir = WorkingDirectory(path=output_dir, cleanup=False).setup()
     npz = np.load(input_npz, allow_pickle=True)
     seq = "".join(np.atleast_1d(npz['sequence']))
+    input_npz = str(input_npz)
 
     params['TDIR'] = output_dir
     
@@ -400,68 +429,68 @@ def make_models(input_npz, output_dir, params):
     models = tmpdir.dirname / 'models'
     models.mkdir(exist_ok=True, parents=True)
     params['models'] = str(models)
-    
-    # create first round of restraints
-    rst = rosetta_utils.generate_constraints(npz, **params)
 
     # submit centroid model work
     centroid_mgr = Manager(func=minimize)
     relax_mgr    = Manager(func=relax)
     for i in range(params['N']):
         mid = f"{i+1:03d}_of_{params['N']}"
-        centroid_mgr.add_work((seq, rst, {**params, 'model_id': mid}), submit=False)
+        centroid_mgr.add_work((seq, input_npz, {**params, 'model_id': mid}), submit=False)
     
     # relax step
     params['ATOM_DIST_MAX'] = 10.0
     # adjust the atom dist maximum for restraint setup
     # so that relaxation is more centralized around locality
-    print("Regenerating restraints")
-    rlxrst = rosetta_utils.generate_constraints(npz, **params)
-
-    # Relax models as they come in 
-    centroids = [] 
-    submitted = 0
-    heapq.heapify(centroids)
-    max_top_score = -np.inf
-    for centroid in centroid_mgr.as_completed():
-        heapq.heappush(centroids, (centroid['score'], centroid['path']))
-        # start K rleax models right on the outset and then be conservative 
-        # by only submitting relax jobs to those that are within the min K scores 
-        if submitted < params['K'] or centroid['score'] <= max_top_score: # start K relax modes right on the outset
-            relax_mgr.add_work((centroid['path'], rlxrst, {**params, 'model_id': centroid['model_id']}), submit=True)
-            max_top_score = max(heapq.nsmallest(params['K'], centroids), key=lambda x: x[0])[0]
-            submitted += 1
-        else:
-            print(f"Skipping relax run for {centroid['path']} ({centroid['score']} > {max_top_score})")
-
+    
+    if params['one']:
+        #  Relax models as they come in subject to being in the running top K 
+        centroids = [] 
+        submitted = 0
+        heapq.heapify(centroids)
+        max_top_score = -np.inf
+        for centroid in centroid_mgr.as_completed():
+            heapq.heappush(centroids, (centroid['score'], centroid['path']))
+            # start K rleax models right on the outset and then be conservative 
+            # by only submitting relax jobs to those that are within the min K scores 
+            if submitted < params['K'] or centroid['score'] <= max_top_score: # start K relax modes right on the outset
+                relax_mgr.add_work((centroid['path'], input_npz, {**params, 'model_id': centroid['model_id']}), submit=True)
+                max_top_score = max(heapq.nsmallest(params['K'], centroids), key=lambda x: x[0])[0]
+                submitted += 1
+            else:
+                print(f"Skipping relax run for {centroid['path']} ({centroid['score']} > {max_top_score})")
+    else:
+        centroids = centroid_mgr.results()
     # record top k centroids
     topk = compute_top_k(centroids, params['K'], str(tmpdir.dirname / 'centroid-models.tsv'))
     relaxed = relax_mgr.results()
     top1 = compute_top_k(relaxed, 1, str(tmpdir.dirname / 'relaxed-models.tsv'))
     return top1[0]
 
-
 if __name__ == '__main__':
     args = arguments()
-    print(args)
     if args.K > args.N:
         args.K = args.N
         warnings.warn(f"Relax models ({args.K}) > Centroid models ({args.N}). Setting them equal.",
                       UserWarning)
     
+    args.one = len(args.i_o) == 1
+    
     params = DEFAULT_PARAMS
     params.update(vars(args).items())
+    del params['i_o']
+    os.environ['PYROSETTA_BOOTED'] = "yes"
 
     cluster = get_cluster(distributed=args.cluster, partition=args.partition)
     client  = Client(cluster)
     print("Created cluster")
     cluster.scale(args.nodes)
     print("Called scale")
-
+    
     big_mgr = Manager(make_models)
     for input_npz, output_dir in args.i_o:
         big_mgr.add_work((input_npz, output_dir, params), submit=True)
-
+    
+    print("Dispatching jobs")
     finals = big_mgr.results()
 
     for path in map(lambda x: Path(x['path']), finals):
