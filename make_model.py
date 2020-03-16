@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 Model structure(s) with npz constraints - input constraints, output structure
 
@@ -174,7 +173,7 @@ def minimize(seq, rst, params):
     mmap = _setup_movemap()
 
     def _setup_minmover(fxn, 
-                        opt='lbfgs_armijo_nonmonotone',
+    ubmit                   opt='lbfgs_armijo_nonmonotone',
                         cutoff=0.0001,
                         max_iter=1000, cartesian=None):
         MinMover = pyrosetta.rosetta.protocols.minimization_packing.MinMover
@@ -323,7 +322,7 @@ def get_cluster(partition=None, distributed=False):
         clust = SLURMCluster
     else:
         clust = LocalCluster
-    
+    print("Getting a {clust} built") 
     return Factory(clust).build(**params)
 
 class Manager(object):
@@ -436,7 +435,7 @@ def make_models(input_npz, output_dir, params):
             print(f"Skipping relax run for {centroid['path']} ({centroid['score']} > {max_top_score})")
 
     # record top k centroids
-    compute_top_k(centroids, params['K'], str(tmpdir.dirname / 'centroid-models.tsv'))
+    topk = compute_top_k(centroids, params['K'], str(tmpdir.dirname / 'centroid-models.tsv'))
     relaxed = relax_mgr.results()
     top1 = compute_top_k(relaxed, 1, str(tmpdir.dirname / 'relaxed-models.tsv'))
     return top1[0]
@@ -444,8 +443,7 @@ def make_models(input_npz, output_dir, params):
 
 if __name__ == '__main__':
     args = arguments()
-
-    ###### init PyRosetta
+    print(args)
     if args.K > args.N:
         args.K = args.N
         warnings.warn(f"Relax models ({args.K}) > Centroid models ({args.N}). Setting them equal.",
@@ -471,3 +469,4 @@ if __name__ == '__main__':
         shutil.copyfile(path, path.parent.parent / 'final.pdb')
     
     print("Done!")
+    client.shutdown()
