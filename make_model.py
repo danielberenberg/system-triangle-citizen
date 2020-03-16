@@ -173,7 +173,7 @@ def minimize(seq, rst, params):
     mmap = _setup_movemap()
 
     def _setup_minmover(fxn, 
-    ubmit                   opt='lbfgs_armijo_nonmonotone',
+                        opt='lbfgs_armijo_nonmonotone',
                         cutoff=0.0001,
                         max_iter=1000, cartesian=None):
         MinMover = pyrosetta.rosetta.protocols.minimization_packing.MinMover
