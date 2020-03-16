@@ -1,0 +1,7 @@
+*.swp
+__pycache__
+slurm*out
+
+cluster_control_files
+dask-worker-space
+test/
