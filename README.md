@@ -9,7 +9,6 @@
 
 Generates a 3D structural model of a protein sequence given structural constraints.
 
-
 # Modeling Details
 - Structures are modeled using the `Rosetta` macromolecular modeling suite through the `PyRosetta` interface.
 - Constraint matrices are read and applied as additions to the Rosetta score function. 
@@ -65,7 +64,7 @@ optional arguments:
 ```
 
 # References and external links
-- ```bibtex
+```bibtex
 @article {Yang1496,
     author = {Yang, Jianyi and Anishchenko, Ivan and Park, Hahnbeom and Peng, Zhenling and Ovchinnikov, Sergey and Baker, David},
     title = {Improved protein structure prediction using predicted interresidue orientations},
@@ -81,28 +80,22 @@ optional arguments:
     journal = {Proceedings of the National Academy of Sciences}
 }
 ```
-- ```bibtex 
+ ```bibtex 
 @article{doi:10.1146/annurev.biochem.77.062906.171838,
-author = {Das, Rhiju and Baker, David},
-title = {Macromolecular Modeling with Rosetta},
-journal = {Annual Review of Biochemistry},
-volume = {77},
-number = {1},
-pages = {363-382},
-year = {2008},
-doi = {10.1146/annurev.biochem.77.062906.171838},
+    author = {Das, Rhiju and Baker, David},
+    title = {Macromolecular Modeling with Rosetta},
+    journal = {Annual Review of Biochemistry},
+    volume = {77},
+    number = {1},
+    pages = {363-382},
+    year = {2008},
+    doi = {10.1146/annurev.biochem.77.062906.171838},
     note ={PMID: 18410248},
-
-URL = { 
-        https://doi.org/10.1146/annurev.biochem.77.062906.171838
-    
-},
-eprint = { 
-        https://doi.org/10.1146/annurev.biochem.77.062906.171838
-}
+    url = {https://doi.org/10.1146/annurev.biochem.77.062906.171838},
+    eprint = {https://doi.org/10.1146/annurev.biochem.77.062906.171838}
 }
 ```
-- ```bibtex
+ ```bibtex
 @article{10.1093/bioinformatics/btq007,
     author = {Chaudhury, Sidhartha and Lyskov, Sergey and Gray, Jeffrey J.},
     title = "{PyRosetta: a script-based interface for implementing molecular modeling algorithms using Rosetta}",

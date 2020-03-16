@@ -26,6 +26,13 @@ class text_color:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+def exists(f):
+    """Existing path 'type'"""
+    f = Path(f)
+    if not f.exists():
+        raise FileNotFoundError(f"{f} doesn't exist")
+    return f 
+
 class MockClient(object):
     def __init__(self, cluster, **client_params):
         self.cluster = cluster

@@ -188,8 +188,6 @@ class ContextMutator(object):
             if residue == self.src:
                 mut = pyrosetta.rosetta.protocols.simple_moves.MutateResidue(i+1, AA_ONE_TO_THREE[self.trg])
                 mut.apply(self.pose)
-
-        print("mutated.")
         return self
     
     def __exit__(self, type, value, traceback):
