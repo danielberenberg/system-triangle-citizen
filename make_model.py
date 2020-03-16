@@ -319,8 +319,7 @@ def get_cluster(partition=None, distributed=False):
     if distributed:
         params['cores'] = 20
         params['memory'] = '25GB'
-        params['interface'] = None if partition == 'bnl' else 'ib0'
-        params['partition'] = partition
+        params['queue'] = partition
         clust = SLURMCluster
     else:
         clust = LocalCluster
