@@ -8,6 +8,7 @@ Model structure(s) with npz constraints - input constraints, output structure
 
 # builtin
 import os
+import site
 import heapq
 import shlex
 import shutil
@@ -27,9 +28,9 @@ from dask_jobqueue import SLURMCluster
 import numpy as np
 
 # local
+from cst_toolbox import rosetta_utils
+from cst_toolbox.misc import WorkingDirectory
 
-from toolbox import rosetta_utils
-from toolbox.misc import WorkingDirectory
 
 _DEFAULT_SCORE_FILES = Path(__file__).parent / 'data' / 'sfxn'
 if not _DEFAULT_SCORE_FILES.is_dir():
@@ -59,7 +60,7 @@ def exists(f):
 
 def io_exists(arg, delim=' ', to_list=True):
     """Tuple of (exists, Path)"""
-    i, o = arg.split(delim)
+    i, o = arg.strip().split(delim)
     tup  = (exists(i), Path(o))
     return [tup] if to_list else tup 
 
@@ -322,7 +323,6 @@ def get_cluster(partition=None, distributed=False):
         clust = SLURMCluster
     else:
         clust = LocalCluster
-    print("Getting a {clust} built") 
     return Factory(clust).build(**params)
 
 class Manager(object):

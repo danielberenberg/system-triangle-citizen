@@ -7,8 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
-from toolbox.misc import text_color, exists
-from toolbox.rosetta_utils import constraint_matrices, load_pose
+from cst_toolbox.misc import text_color, exists
+from cst_toolbox.rosetta_utils import constraint_matrices, load_pose
 
 
 
