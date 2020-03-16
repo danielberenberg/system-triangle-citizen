@@ -46,7 +46,7 @@ class ConstraintTypes(Enum):
                           symmetric=True)
 
     dist_ca = ConstraintInfo("C"+u"\u03B1",
-                            "AtomPair CA {RES1} CA {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG"
+                            "AtomPair CA {RES1} CA {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
                             symmetric=True)
 
     dist_cb = ConstraintInfo("C"+u"\u03B2",

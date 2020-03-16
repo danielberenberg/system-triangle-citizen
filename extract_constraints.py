@@ -22,9 +22,7 @@ def arguments():
 if __name__ == '__main__':
     args = arguments()
     pose = load_pose(args.input_pdb, from_sequence=False)
-
     print(f"Loaded {text_color.LT_RED}{args.input_pdb}{text_color.ENDC}.")
     mats = constraint_matrices(pose)
     np.savez_compressed(args.output_npz, **mats)
     print(f"Wrote out {text_color.GREEN}{args.output_npz}{text_color.ENDC}.")
-    
