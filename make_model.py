@@ -150,6 +150,7 @@ def minimize(seq, rst, params):
     """
     pyrosetta = import_module("pyrosetta")
     pyrosetta.distributed.init(params['initargs'])
+    os.environ['PYROSETTA_BOOTED'] = "yes"
 
     model_id = params.get("model_id") or secrets.token_hex(16)
     print(f"[{model_id}] BEGIN MINIMIZE")
@@ -231,6 +232,7 @@ def relax(filename, rst, params):
     """
     pyrosetta = import_module("pyrosetta")
     pyrosetta.distributed.init(params['initargs'])
+    os.environ['PYROSETTA_BOOTED'] = "yes"
 
     model_id = params.get("model_id") or secrets.token_hex(16)
     print(f"[{model_id}] BEGIN RELAX")
