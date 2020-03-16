@@ -2,12 +2,13 @@
 - [Modeling Details](#modeling-details)
 - [Technical Details](#technical-details)
 - [Dependencies](#dependencies)
-- [Invoke](#invoke)
 - [References and external links](#references-and-external-links)
 
 # model-from-constraints
 
 Generates a 3D structural model of a protein sequence given structural constraints.
+- `extract_constraints.py` will generate constraint matrices from protein structure and save as a `.npz` file.
+- `make_model.py` will process constraint `.npz` files and generate models using them. 
 
 # Modeling Details
 - Structures are modeled using the `Rosetta` macromolecular modeling suite through the `PyRosetta` interface.
@@ -28,40 +29,6 @@ of backbone and sidechain minimization is employed with respect to the provided 
   - `pyrosetta` (Requires Academic or Commercial license, see PyRosetta documentation)
     - Can install using `conda`
 
-# Invoke
-```
-usage: make_model.py [-h] [--io-list I_O] [-io I_O] [-N NODES] [-p {ccb,bnl}]
-                     [--local] [-n N] [-m K]
-                     [-C {dist,omega,phi,theta} [{dist,omega,phi,theta} ...]]
-                     [-M {0,1,2}] [--rosetta-init INITARGS]
-                     [--score-fxn-wts SCORE_FUNCTION_DIR]
-
-Model structure with npz constraints using PyRosetta.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --io-list I_O         Two column (input npz/output dir) filelist
-  -io I_O               InputNPZ OutputDirectory
-  -N NODES, --cluster-nodes NODES
-                        Number of cluster nodes to scale
-  -p {ccb,bnl}, --cluster-partition {ccb,bnl}
-                        SLURM partition
-  --local               Local multithreaded mode
-  -n N, --nstruct N     Number of coarse-grained structures to generate
-  -m K, --nrelax K      Number (m < n) of structures to perform full-atom
-                        refinement
-  -C {dist,omega,phi,theta} [{dist,omega,phi,theta} ...], --constraint-types {dist,omega,phi,theta} [{dist,omega,phi,theta} ...]
-                        Include only these input channels from the NPZ.
-  -M {0,1,2}, --mode {0,1,2}
-                        Run mode: 0=short->medium->long, 1=short+medium->long,
-                        2=short+medium+long
-  --rosetta-init INITARGS
-                        Flags to pass to pyrosetta.init (wrap this in doub.
-                        quotes).
-  --score-fxn-wts SCORE_FUNCTION_DIR
-                        Score function weights directory. (Default=data/sfxn)
-
-```
 
 # References and external links
 ```bibtex
@@ -79,8 +46,7 @@ optional arguments:
     eprint = {https://www.pnas.org/content/117/3/1496.full.pdf},
     journal = {Proceedings of the National Academy of Sciences}
 }
-```
- ```bibtex 
+
 @article{doi:10.1146/annurev.biochem.77.062906.171838,
     author = {Das, Rhiju and Baker, David},
     title = {Macromolecular Modeling with Rosetta},
@@ -94,8 +60,7 @@ optional arguments:
     url = {https://doi.org/10.1146/annurev.biochem.77.062906.171838},
     eprint = {https://doi.org/10.1146/annurev.biochem.77.062906.171838}
 }
-```
- ```bibtex
+
 @article{10.1093/bioinformatics/btq007,
     author = {Chaudhury, Sidhartha and Lyskov, Sergey and Gray, Jeffrey J.},
     title = "{PyRosetta: a script-based interface for implementing molecular modeling algorithms using Rosetta}",
