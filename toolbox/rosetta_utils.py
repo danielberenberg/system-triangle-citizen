@@ -45,6 +45,14 @@ class ConstraintTypes(Enum):
                           "AtomPair CA {RES1} CA {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
                           symmetric=True)
 
+    dist_ca = ConstraintInfo("C"+u"\u03B1",
+                            "AtomPair CA {RES1} CA {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG"
+                            symmetric=True)
+
+    dist_cb = ConstraintInfo("C"+u"\u03B2",
+                            "AtomPair CB {RES1} CB {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
+                            symmetric=True)
+
     omega = ConstraintInfo(u"\u03C9",
                           "Dihedral CA {RES1} CB {RES1} CB {RES2} CA {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
                           symmetric=True)

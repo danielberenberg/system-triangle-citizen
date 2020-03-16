@@ -104,16 +104,15 @@ def arguments():
     parser.add_argument("--local", help="Local multithreaded mode", 
                         action='store_false', dest='cluster')
 
-
     # input parameters
     parser.add_argument("-n","--nstruct", help="Number of coarse-grained structures to generate",
                         type=nat, dest='N')
-    parser.add_argument("-m","--nrelax", help="Number (m < n) of structures to perform full-atom refinement", type=nat,
+    parser.add_argument("-k","--nrelax", help="Number (k < n) of structures to perform full-atom refinement", type=nat,
                         dest='K')
+
     parser.add_argument("-C", "--constraint-types", nargs='+',
-                        choices=['dist',
-                                 #'dist_ca', 'dist_cb', 
-                                 'omega', 'phi', 'theta', ], dest='constraint_types',
+                        choices=[cst.name for cst in rosetta_utils.ConstraintTypes],
+                        dest='constraint_types', 
                         help="Include only these input channels from the NPZ.")
 
     parser.add_argument("-M", "--mode", choices=[0, 1, 2], dest='mode',
@@ -129,7 +128,6 @@ def arguments():
                         help=f"Score function weights directory. (Default={DefaultArguments.score_function_dir.value or 'Not found...'})",
                         required=DefaultArguments.score_function_dir.value is None)
 
-    
     parser.set_defaults(**DEFAULT_PARAMS)
 
     return parser.parse_args()
