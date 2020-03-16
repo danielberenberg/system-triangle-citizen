@@ -8,8 +8,9 @@ Model structure(s) with npz constraints - input constraints, output structure
 #TODO(make this work for multiple npz inputs)
 
 # builtin
+import os
 import heapq
-import os.path
+import shlex
 import shutil
 import warnings
 import argparse
@@ -25,7 +26,6 @@ from dask.distributed import Client, LocalCluster, as_completed, get_client
 from dask_jobqueue import SLURMCluster
 
 import numpy as np
-import pyrosetta
 
 # local
 
@@ -38,6 +38,7 @@ if not _DEFAULT_SCORE_FILES.is_dir():
 
 ROSETTA_LOGLEVEL = 100
 
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 #########################
 #>>>>> Commandline configuration 
@@ -150,11 +151,12 @@ def minimize(seq, rst, params):
     returns:
         :(dict): {'path': str, 'score': score}
     """
+    pyrosetta = import_module("pyrosetta")
+    pyrosetta.distributed.init(params['initargs'])
+
     model_id = params.get("model_id") or secrets.token_hex(16)
     print(f"[{model_id}] BEGIN MINIMIZE")
 
-    pyrosetta = import_module("pyrosetta")
-    rosetta_utils.boot_pyrosetta(params['initargs'])
     #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
     #| setup ScoreFunctions and Mover objects |#
     #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
@@ -231,20 +233,18 @@ def relax(filename, rst, params):
         :(dict): {'path': str, 'score': score}
     """
     pyrosetta = import_module("pyrosetta")
+    pyrosetta.distributed.init(params['initargs'])
+
     model_id = params.get("model_id") or secrets.token_hex(16)
     print(f"[{model_id}] BEGIN RELAX")
 
     def _setup_movemap(bb=True, chi=False, jump=True):
-        pyrosetta = import_module('pyrosetta')
-        rosetta_utils.boot_pyrosetta(params['initargs'])
-
         mmap = pyrosetta.MoveMap()
         mmap.set_bb(bb)
         mmap.set_chi(chi)
         mmap.set_jump(jump)
         return mmap
 
-    rosetta_utils.boot_pyrosetta(params['initargs'])
     pose = rosetta_utils.load_pose(filename)
 
     sf_fa = pyrosetta.create_score_function('ref2015')
@@ -326,7 +326,6 @@ def get_cluster(partition=None, distributed=False):
         clust = LocalCluster
     
     return Factory(clust).build(**params)
-    return Factory(bp).build(**params)
 
 class Manager(object):
     """
@@ -434,6 +433,8 @@ def make_models(input_npz, output_dir, params):
             relax_mgr.add_work((centroid['path'], rlxrst, {**params, 'model_id': centroid['model_id']}), submit=True)
             max_top_score = max(heapq.nsmallest(params['K'], centroids), key=lambda x: x[0])[0]
             submitted += 1
+        else:
+            print(f"Skipping relax run for {centroid['path']} ({centroid['score']} > {max_top_score})")
 
     # record top k centroids
     compute_top_k(centroids, params['K'], str(tmpdir.dirname / 'centroid-models.tsv'))
