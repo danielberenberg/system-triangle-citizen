@@ -8,7 +8,6 @@ Model structure(s) with npz constraints - input constraints, output structure
 
 # builtin
 import os
-import site
 import shutil
 import random
 import secrets
@@ -166,8 +165,6 @@ def minimize(seq, input_npz, params):
     dumpfile = str(os.path.join(params['models'], "model_" + model_id + '.pdb')) 
 
     prefix = f"[{Path(params['TDIR']).name}-{model_id}]"
-    #print(f"{prefix} BEGIN MINIMIZE")
-    
     try:
         centroid_score_function = pyrosetta.create_score_function('cen_std')
     except:
@@ -186,7 +183,8 @@ def minimize(seq, input_npz, params):
         return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
     #print(dumpfile, "does not exist")
-    secede()
+    if params['cluster']:
+        secede()
 
     #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
     #| setup ScoreFunctions and Mover objects |#
@@ -241,14 +239,14 @@ def minimize(seq, input_npz, params):
             repeat_mover.apply(pose)
             min_mover_cart.apply(pose)
             rosetta_utils.remove_clash(sf_vdw, min_mover1, pose)
-    
 
     score = centroid_score_function(pose)
     print(f"{prefix} Centroid score: {score}")
     pose.dump_pdb(dumpfile)
 
     #print(f"{prefix} END MINIMIZE")
-    rejoin()
+    if params['cluster']:
+        rejoin()
     return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
 
@@ -268,7 +266,6 @@ def relax(filename, input_npz, params):
 
     model_id = params.get("model_id") or secrets.token_hex(16)
     prefix = f"[{Path(params['TDIR']).name}-{model_id}]"
-    #print(f"{prefix} BEGIN RELAX")
 
     sf_fa = pyrosetta.create_score_function('ref2015')
     sf_fa.set_weight(pyrosetta.rosetta.core.scoring.atom_pair_constraint, 5)
@@ -313,7 +310,6 @@ def relax(filename, input_npz, params):
     score = sf_fa(pose)
     print(f"{prefix} FastRelax fa_standard score: {score}")
     pose.dump_pdb(dumpfile)
-    #print(f"{prefix} END RELAX")
     rejoin()
     return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
@@ -453,7 +449,6 @@ def make_models(input_npz, output_dir, params):
     for t in topk:
         relax_mgr.add_work((t['path'], input_npz, {**params, 'model_id': t['model_id']}), submit=True)
     relaxed = relax_mgr.results()
-    print(f"[{output_dir}] Relaxed top scoring centroids.")
     top1 = compute_top_k(relaxed, 1, str(tmpdir.dirname / 'relaxed-models.tsv'))
     shutil.copyfile(top1[0]['path'], tmpdir.dirname / 'final.pdb')
     return str(tmpdir.dirname / 'final.pdb')
