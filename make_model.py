@@ -431,35 +431,37 @@ def make_models(input_npz, output_dir, params):
     params['models'] = str(models)
 
     # submit centroid model work
+    centroids = []
     centroid_mgr = Manager(func=minimize)
     relax_mgr    = Manager(func=relax)
     for i in range(params['N']):
         mid = f"{i+1:03d}_of_{params['N']}"
         centroid_mgr.add_work((seq, input_npz, {**params, 'model_id': mid}), submit=False)
+
     
     # relax step
     params['ATOM_DIST_MAX'] = 10.0
     # adjust the atom dist maximum for restraint setup
     # so that relaxation is more centralized around locality
     
-    if params['one']:
-        #  Relax models as they come in subject to being in the running top K 
-        centroids = [] 
-        submitted = 0
-        heapq.heapify(centroids)
-        max_top_score = -np.inf
-        for centroid in centroid_mgr.as_completed():
-            heapq.heappush(centroids, (centroid['score'], centroid['path']))
-            # start K rleax models right on the outset and then be conservative 
-            # by only submitting relax jobs to those that are within the min K scores 
-            if submitted < params['K'] or centroid['score'] <= max_top_score: # start K relax modes right on the outset
-                relax_mgr.add_work((centroid['path'], input_npz, {**params, 'model_id': centroid['model_id']}), submit=True)
-                max_top_score = max(heapq.nsmallest(params['K'], centroids), key=lambda x: x[0])[0]
-                submitted += 1
-            else:
-                print(f"Skipping relax run for {centroid['path']} ({centroid['score']} > {max_top_score})")
-    else:
-        centroids = centroid_mgr.results()
+    #if params['one']:
+    #    #  Relax models as they come in subject to being in the running top K 
+    #    centroids = [] 
+    #    submitted = 0
+    #    heapq.heapify(centroids)
+    #    max_top_score = -np.inf
+    #    for centroid in centroid_mgr.as_completed():
+    #        heapq.heappush(centroids, (centroid['score'], centroid['path']))
+    #        # start K rleax models right on the outset and then be conservative 
+    #        # by only submitting relax jobs to those that are within the min K scores 
+    #        if submitted < params['K'] or centroid['score'] <= max_top_score: # start K relax modes right on the outset
+    #            relax_mgr.add_work((centroid['path'], input_npz, {**params, 'model_id': centroid['model_id']}), submit=True)
+    #            max_top_score = max(heapq.nsmallest(params['K'], centroids), key=lambda x: x[0])[0]
+    #            submitted += 1
+    #        else:
+    #            print(f"Skipping relax run for {centroid['path']} ({centroid['score']} > {max_top_score})")
+    #else:
+    #    centroids = centroid_mgr.results()
     # record top k centroids
     topk = compute_top_k(centroids, params['K'], str(tmpdir.dirname / 'centroid-models.tsv'))
     relaxed = relax_mgr.results()
@@ -486,12 +488,14 @@ if __name__ == '__main__':
     cluster.scale(args.nodes)
     print("Called scale")
     
-    big_mgr = Manager(make_models)
-    for input_npz, output_dir in args.i_o:
-        big_mgr.add_work((input_npz, output_dir, params), submit=True)
-    
+    #big_mgr = Manager(make_models)
     print("Dispatching jobs")
-    finals = big_mgr.results()
+    finals = []
+    for input_npz, output_dir in args.i_o:
+        #big_mgr.add_work((input_npz, output_dir, params), submit=True)
+        finals.append(make_models(input_npz, output_dir, params))
+    
+    #finals = big_mgr.results()
 
     for path in map(lambda x: Path(x['path']), finals):
         print(path)
