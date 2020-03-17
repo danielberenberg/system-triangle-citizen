@@ -17,6 +17,7 @@ import random
 from enum import Enum
 from time import sleep
 from pathlib import Path
+from datetime import datetime
 from functools import partial
 from importlib import import_module
 
@@ -155,7 +156,11 @@ def minimize(seq, input_npz, params):
     returns:
         :(dict): {'path': str, 'score': score}
     """
+    with open("hi-minmize.txt", 'a') as f:
+        print(f"hi from {Path(input_npz).name}", file=f)
+
     pyrosetta = import_module("pyrosetta")
+    #if params['init_pyrosetta']:
     pyrosetta.distributed.init(params['initargs'])
 
     npz = np.load(input_npz, allow_pickle=True)
@@ -183,8 +188,9 @@ def minimize(seq, input_npz, params):
         return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
     #print(dumpfile, "does not exist")
-    if params['cluster']:
-        secede()
+    #if params['cluster']:
+    print(f"{prefix} (minimize) seceding")
+    secede()
 
     #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
     #| setup ScoreFunctions and Mover objects |#
@@ -241,12 +247,13 @@ def minimize(seq, input_npz, params):
             rosetta_utils.remove_clash(sf_vdw, min_mover1, pose)
 
     score = centroid_score_function(pose)
-    print(f"{prefix} Centroid score: {score}")
+    print(f"{prefix} (minimize) Centroid score: {score}")
     pose.dump_pdb(dumpfile)
 
     #print(f"{prefix} END MINIMIZE")
-    if params['cluster']:
-        rejoin()
+    #if params['cluster']:
+    print(f"{prefix} (minimize) rejoining")
+    rejoin()
     return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
 
@@ -258,60 +265,69 @@ def relax(filename, input_npz, params):
     returns:
         :(dict): {'path': str, 'score': score}
     """
-    pyrosetta = import_module("pyrosetta")
-    pyrosetta.distributed.init(params['initargs'])
     
-    npz = np.load(input_npz, allow_pickle=True)
-    rst = rosetta_utils.generate_constraints(npz, **params)
-
-    model_id = params.get("model_id") or secrets.token_hex(16)
-    prefix = f"[{Path(params['TDIR']).name}-{model_id}]"
-
-    sf_fa = pyrosetta.create_score_function('ref2015')
-    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.atom_pair_constraint, 5)
-    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.dihedral_constraint, 1)
-    sf_fa.set_weight(pyrosetta.rosetta.core.scoring.angle_constraint, 1)
+    try:
+        pyrosetta = import_module("pyrosetta")
+        #if params['init_pyrosetta']:
+        pyrosetta.distributed.init(params['initargs'])
         
-    dumpfile = str(os.path.join(params['models'], 'relax_' + model_id + '.pdb'))
-    if Path(dumpfile).exists() and params.get('overwrite') is False:
-        #print(f"{prefix} RELAX EXISTS")
-        pose = rosetta_utils.load_pose(dumpfile, from_sequence=False)
+        npz = np.load(input_npz, allow_pickle=True)
+        rst = rosetta_utils.generate_constraints(npz, **params)
+
+        model_id = params.get("model_id") or secrets.token_hex(16)
+        prefix = f"[{Path(params['TDIR']).name}-{model_id}]"
+
+        sf_fa = pyrosetta.create_score_function('ref2015')
+        sf_fa.set_weight(pyrosetta.rosetta.core.scoring.atom_pair_constraint, 5)
+        sf_fa.set_weight(pyrosetta.rosetta.core.scoring.dihedral_constraint, 1)
+        sf_fa.set_weight(pyrosetta.rosetta.core.scoring.angle_constraint, 1)
+            
+        dumpfile = str(os.path.join(params['models'], 'relax_' + model_id + '.pdb'))
+        if Path(dumpfile).exists() and params.get('overwrite') is False:
+            #print(f"{prefix} RELAX EXISTS")
+            pose = rosetta_utils.load_pose(dumpfile, from_sequence=False)
+            score = sf_fa(pose)
+            print(f"{prefix} (precomputed) FastRelax fa_standard score: {score}")
+            return {'path': dumpfile, 'score': score, 'model_id': model_id}
+
+        print(f"{prefix} (relax) seceding")
+        secede()
+
+        def _setup_movemap(bb=True, chi=False, jump=True):
+            mmap = pyrosetta.MoveMap()
+            mmap.set_bb(bb)
+            mmap.set_chi(chi)
+            mmap.set_jump(jump)
+            return mmap
+
+        pose = rosetta_utils.load_pose(filename)
+
+        mmap = _setup_movemap(bb=True, chi=True, jump=True)
+        relax = pyrosetta.rosetta.protocols.relax.FastRelax()
+        relax.set_scorefxn(sf_fa)
+        relax.max_iter(200)
+        relax.dualspace(True)
+        relax.set_movemap(mmap)
+
+        pose.remove_constraints()
+        
+        # switch to full atom mode
+        switch = pyrosetta.SwitchResidueTypeSetMover("fa_standard")
+        switch.apply(pose)
+        
+        seq = pose.sequence()
+        rosetta_utils.add_constraints(pose, rst, (1, len(seq)), seq, params['TDIR'], nogly=True)
+        relax.apply(pose)
+
         score = sf_fa(pose)
-        print(f"{prefix} (precomputed) FastRelax fa_standard score: {score}")
+        print(f"{prefix} (relax) FastRelax fa_standard score: {score}")
+        pose.dump_pdb(dumpfile)
+        print(f"{prefix} (relax) rejoining")
+        rejoin()
         return {'path': dumpfile, 'score': score, 'model_id': model_id}
-    secede()
-
-    def _setup_movemap(bb=True, chi=False, jump=True):
-        mmap = pyrosetta.MoveMap()
-        mmap.set_bb(bb)
-        mmap.set_chi(chi)
-        mmap.set_jump(jump)
-        return mmap
-
-    pose = rosetta_utils.load_pose(filename)
-
-    mmap = _setup_movemap(bb=True, chi=True, jump=True)
-    relax = pyrosetta.rosetta.protocols.relax.FastRelax()
-    relax.set_scorefxn(sf_fa)
-    relax.max_iter(200)
-    relax.dualspace(True)
-    relax.set_movemap(mmap)
-
-    pose.remove_constraints()
-    
-    # switch to full atom mode
-    switch = pyrosetta.SwitchResidueTypeSetMover("fa_standard")
-    switch.apply(pose)
-    
-    seq = pose.sequence()
-    rosetta_utils.add_constraints(pose, rst, (1, len(seq)), seq, params['TDIR'], nogly=True)
-    relax.apply(pose)
-
-    score = sf_fa(pose)
-    print(f"{prefix} FastRelax fa_standard score: {score}")
-    pose.dump_pdb(dumpfile)
-    rejoin()
-    return {'path': dumpfile, 'score': score, 'model_id': model_id}
+    except Exception as e:
+        with open("except-relax.txt", 'a') as f:
+            print(f"args={(filename, input_npz, params)}\nexception={e}", file=f)
 
 
 def compute_top_k(models, k, tsvfile):
@@ -344,7 +360,7 @@ def get_cluster(partition=None, distributed=False):
     params = {}
     if distributed:
         params['processes'] = 20
-        params['cores'] = 3 
+        params['cores'] = 1 
         params['memory'] = '160GB'
         params['queue'] = partition
         clust = SLURMCluster
@@ -418,6 +434,9 @@ def make_models(input_npz, output_dir, params):
         :(str) - path to final model
     """
     print(input_npz, output_dir)
+    #########
+    start = datetime.now()
+    #########
 
     tmpdir = WorkingDirectory(path=output_dir, cleanup=False).setup()
     npz = np.load(input_npz, allow_pickle=True)
@@ -440,7 +459,7 @@ def make_models(input_npz, output_dir, params):
     centroids = centroid_mgr.results() 
     # adjust the atom dist maximum for restraint setup
     # so that relaxation is more centralized around locality
-    params['ATOM_DIST_MAX'] = 10.0
+    #params['ATOM_DIST_MAX'] = 10.0
     
     # record top k centroids
     topk = compute_top_k(centroids, params['K'], str(tmpdir.dirname / 'centroid-models.tsv'))
@@ -451,6 +470,10 @@ def make_models(input_npz, output_dir, params):
     relaxed = relax_mgr.results()
     top1 = compute_top_k(relaxed, 1, str(tmpdir.dirname / 'relaxed-models.tsv'))
     shutil.copyfile(top1[0]['path'], tmpdir.dirname / 'final.pdb')
+    #########
+    finish = datetime.now()
+    #########
+    print(f"{tmpdir.dirname.name}: {finish - start}")
     return str(tmpdir.dirname / 'final.pdb')
 
 if __name__ == '__main__':
@@ -473,16 +496,19 @@ if __name__ == '__main__':
     cluster.scale(args.nodes)
     print("Called scale")
     
-    #big_mgr = Manager(make_models)
+    big_mgr = Manager(make_models)
     print("Dispatching jobs")
     finals = []
     try:
-        for input_npz, output_dir in args.i_o:
-            #big_mgr.add_work((input_npz, output_dir, params), submit=True)
-            final = make_models(input_npz, output_dir, params)
-            print(output_dir, final)
+        for i, (input_npz, output_dir) in enumerate(args.i_o):
+            if not (Path(output_dir) / 'final.pdb').exists():
+                start = datetime.now()
+                big_mgr.add_work((input_npz, output_dir, params), submit=True)
+                final = make_models(input_npz, output_dir, params)
+            else:
+                print(f"{input_npz} is finished!")
     
-        #finals = big_mgr.results()
+        finals = big_mgr.results()
     finally:
         print("Done!")
         client.shutdown()
