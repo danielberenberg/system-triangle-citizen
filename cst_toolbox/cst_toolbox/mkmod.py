@@ -20,7 +20,10 @@ from cst_toolbox.misc import exists, WorkingDirectory
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
+PATH = Path(__file__).absolute()
+
 _DEFAULT_SCORE_FILES = Path(__file__).parent / 'data' / 'sfxn'
+
 if not _DEFAULT_SCORE_FILES.is_dir():
     _DEFAULT_SCORE_FILES = None
 
@@ -35,11 +38,9 @@ class DefaultArguments(Enum):
 
 DEFAULT_PARAMS = {param.name: param.value for param in DefaultArguments}
 
-def setup_arguments():
-    parser = argparse.ArgumentParser(description="Make or relax model")
-    parser.add_argument("input_npz", help="Input constraint matrix file", type=exists)
-    parser.add_argument("TDIR", help="Output directory", type=Path)
-    parser.add_argument("--output_json", type=Path)
+def _setup_arguments(parser, defaults=True):
+    parser.add_argument("--model_json", type=Path)
+    parser.add_argument("--model_id")
 
     parser.add_argument("--relax", help="Input PDB file if relax mode", type=exists, dest='input_pdb')
 
@@ -62,14 +63,19 @@ def setup_arguments():
                         required=DefaultArguments.score_function_dir.value is None)
 
     parser.add_argument("--overwrite", help="Overwrite paths", action='store_true', dest='overwrite')
-
-    parser.set_defaults(**DEFAULT_PARAMS)
-    return parser
+    
+    if defaults:
+        parser.set_defaults(**DEFAULT_PARAMS)
 
 def arguments():
-    return setup_arguments().parse_args()
+    parser = argparse.ArgumentParser(description="Make or relax model")
 
+    # add positionals
+    parser.add_argument("input_npz", help="Input constraint matrix file", type=exists)
+    parser.add_argument("TDIR", help="Output directory", type=exists)
 
+    _setup_arguments(parser)
+    return parser.parse_args()
 
 #########################
 #>>>>> Rosetta functions 
@@ -109,6 +115,7 @@ def minimize(seq, rst, params):
     #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
     sfdir = Path(params['score_function_dir'])
     sfs   = [str(sfdir / sffn) for sffn in ['scorefxn.wts', 'scorefxn1.wts', 'scorefxn_vdw.wts', 'scorefxn_cart.wts']]
+    print(sfs)
     sf, sf1, sf_vdw, sf_cart = map(rosetta_utils.load_score_fxn_with_weights, sfs)     
    
     def _setup_movemap(bb=True, chi=False, jump=True):
@@ -221,6 +228,7 @@ def relax(filename, rst , params):
     pose.dump_pdb(dumpfile)
     return {'path': dumpfile, 'score': score, 'model_id': model_id}
 
+
 if __name__ == '__main__':
     import pyrosetta
 
@@ -252,6 +260,6 @@ if __name__ == '__main__':
         mode = 'centroid'
 
     y = f(*X)
-    if args.output_json is not None:
-        with open(args.output_json, 'w') as js:
+    if args.model_json is not None:
+        with open(args.model_json, 'w') as js:
             js.write(json.dumps({**y, 'mode': mode}))

@@ -8,12 +8,15 @@ Model structure(s) with npz constraints - input constraints, output structure
 
 # builtin
 import os
+import json
+import shlex
 import shutil
 import random
 import secrets
 import warnings
 import argparse
 import itertools
+import subprocess
 from enum import Enum
 from time import sleep
 from pathlib import Path
@@ -65,7 +68,7 @@ class DefaultArguments(Enum):
     partition          = 'ccb'
     nodes              = 5
 
-DEFAULT_PARAMS = {param.name; param.value for param in itertools.chain(DefaultArguments, mkmod.DefaultArguments)}
+DEFAULT_PARAMS = {param.name: param.value for param in itertools.chain(DefaultArguments, mkmod.DefaultArguments)}
 
 def arguments():
     """Configure commandline parser"""
@@ -196,6 +199,24 @@ class Manager(object):
                 self.submit()
         yield from map(lambda fut: fut.result(), as_completed(self.__running))
 
+def run_mkmod_command(cmd, outjson):
+    """Runs mkmod assuming the command contained an --output_json parameter
+    and retrives that json information
+    
+    args:
+        :cmd (str) - command string
+        :outjson (str) - path to expected output file
+    returns:
+        :(dict) - json structure
+    """
+    command = shlex.split(cmd)
+
+    # blocks until complete
+    subprocess.run(command) 
+    with open(outjson, 'r') as js:
+        jstruct = json.loads(js.read())
+    return jstruct
+    
 def make_models(input_npz, output_dir, params):
     """Run the entire modeling workflow
     args:
@@ -219,14 +240,31 @@ def make_models(input_npz, output_dir, params):
     
     # create a models directory
     models = tmpdir.dirname / 'models'
+    tmp    = tmpdir.dirname / 'tmp'
     models.mkdir(exist_ok=True, parents=True)
+    tmp.mkdir(exist_ok=True, parents=True)
     params['models'] = str(models)
+    params['tmp']    = str(tmp)
 
     # submit centroid model work
-    centroid_mgr = Manager(func=minimize)
+    centroid_mgr = Manager(func=run_mkmod_command)
+    
+    configurables  = "--model_id {model_id} --model_json {model_json} " 
+    command        = f"python {mkmod.PATH} {input_npz} {output_dir} "
+    
+    csts = " ".join(params['constraint_types'])
+    flags  = f"--constraint-types {csts} "
+    #flags += f"--score-fxn-wts {params['score_function_dir']}"
+    if params['overwrite']:
+        flags += "--overwrite"
+
+    command_format = command + configurables + flags 
+
     for i in range(params['N']):
         mid = f"{i+1:03d}_of_{params['N']}"
-        centroid_mgr.add_work((seq, input_npz, {**params, 'model_id': mid}), submit=True)
+        outjson = str(tmp / f"{mid}_{secrets.token_hex(16)}.json")
+        cmd = command_format.format(model_id=mid, model_json=outjson)
+        centroid_mgr.add_work((cmd, outjson), submit=True)
 
     centroids = centroid_mgr.results() 
     # adjust the atom dist maximum for restraint setup
@@ -236,9 +274,19 @@ def make_models(input_npz, output_dir, params):
     # record top k centroids
     topk = compute_top_k(centroids, params['K'], str(tmpdir.dirname / 'centroid-models.tsv'))
     print(f"[{output_dir}] Got {len(topk)} top scoring centroid models.")
-    relax_mgr  = Manager(func=relax)
+    
+    # add a relax parameter ot config flgs.
+    configurables += "--relax {input_pdb} "
+    command_format = command + configurables + flags
+
+    relax_mgr  = Manager(func=run_mkmod_command)
     for t in topk:
-        relax_mgr.add_work((t['path'], input_npz, {**params, 'model_id': t['model_id']}), submit=True)
+        mid = t['model_id']
+        outjson = str(tmp / f"{mid}_relax_{secrets.token_hex(16)}.json")
+        input_pdb = t['path']
+        cmd = command_format.format(model_id=mid, model_json=outjson, input_pdb=input_db)
+        relax_mgr.add_work((cmd, outjson), submit=True)
+
     relaxed = relax_mgr.results()
     top1 = compute_top_k(relaxed, 1, str(tmpdir.dirname / 'relaxed-models.tsv'))
     shutil.copyfile(top1[0]['path'], tmpdir.dirname / 'final.pdb')
@@ -250,7 +298,6 @@ def make_models(input_npz, output_dir, params):
 
 if __name__ == '__main__':
     args = arguments()
-    print(args.cluster, "is clsuter")
     if args.K > args.N:
         args.K = args.N
         warnings.warn(f"Relax models ({args.K}) > Centroid models ({args.N}). Setting them equal.",

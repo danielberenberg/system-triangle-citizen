@@ -109,8 +109,8 @@ def _create_all_restraints(npz, **params):
 def generate_constraints(npz, **params):
     """Generate all restraints"""
     rst = _create_all_restraints(npz, **params)
-    for cst_type in ConstraintTypes:
-        print(f"# {str(cst_type.value)} constraints: {len(rst[cst_type.name])}")
+    #for cst_type in ConstraintTypes:
+    #    print(f"# {str(cst_type.value)} constraints: {len(rst[cst_type.name])}")
     return rst
 
 PYROSETTA_BOOTED = "PYROSETTA_BOOTED"
@@ -270,8 +270,8 @@ def add_constraints(pose, rst, distance_interval, seq, tmpdir, nogly=False):
     
     # write out constraints
     random.shuffle(lines)
-    Path(tmpdir / 'csts').mkdir(exist_ok=True, parents=True)
-    with open(Path(tmpdir) / 'csts' / f"minimize_{secrets.token_hex(16)}.cst", 'w') as cstfile:
+    Path(tmpdir / 'tmp').mkdir(exist_ok=True, parents=True)
+    with open(Path(tmpdir) / 'tmp' / f"minimize_{secrets.token_hex(16)}.cst", 'w') as cstfile:
         print(*lines, sep='\n', file=cstfile)
         cst_filename = str(cstfile.name)
 
