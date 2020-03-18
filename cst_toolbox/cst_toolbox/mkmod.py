@@ -252,11 +252,13 @@ if __name__ == '__main__':
         pdb = str(params['input_pdb'])
         X = (pdb, rst, params)
         f = relax
+        print("relaxing ...")
         mode = 'relax'
     else:
         seq = "".join(np.atleast_1d(npz['sequence']))
         X = (seq, rst, params)
         f = minimize
+        print("centroiding ...")
         mode = 'centroid'
 
     y = f(*X)
