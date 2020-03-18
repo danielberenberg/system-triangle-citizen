@@ -284,7 +284,7 @@ def make_models(input_npz, output_dir, params):
         mid = t['model_id']
         outjson = str(tmp / f"{mid}_relax_{secrets.token_hex(16)}.json")
         input_pdb = t['path']
-        cmd = command_format.format(model_id=mid, model_json=outjson, input_pdb=input_db)
+        cmd = command_format.format(model_id=mid, model_json=outjson, input_pdb=input_pdb)
         relax_mgr.add_work((cmd, outjson), submit=True)
 
     relaxed = relax_mgr.results()
