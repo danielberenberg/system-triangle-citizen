@@ -32,7 +32,7 @@ import numpy as np
 
 # local
 from cst_toolbox import rosetta_utils
-from cst_toolbox.misc import WorkingDirectory
+from cst_toolbox.misc import WorkingDirectory, exists, nat
 
 
 _DEFAULT_SCORE_FILES = Path(__file__).parent / 'data' / 'sfxn'
@@ -46,20 +46,6 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 #########################
 #>>>>> Commandline configuration 
 #########################
-
-def nat(x):
-    """Natural number > 0 'type'"""
-    x = int(x)
-    if x <= 0:
-        raise TypeError(f"Expected natural number, not {x}")
-    return x
-
-def exists(f):
-    """Existing path 'type'"""
-    f = Path(f)
-    if not f.exists():
-        raise FileNotFoundError(f"{f} doesn't exist")
-    return f 
 
 def io_exists(arg, delim=' ', to_list=True):
     """Tuple of (exists, Path)"""
@@ -102,7 +88,6 @@ def arguments():
 
     parser.add_argument("-io", dest='i_o', help="InputNPZ OutputDirectory",
                           type=io_exists, metavar="IN OUT")
-    parser.add_argument("--overwrite", help="Overwrite paths", action='store_true', dest='overwrite')
     
     # cluster arguments
     parser.add_argument("-N", "--num-workers", 
@@ -156,105 +141,107 @@ def minimize(seq, input_npz, params):
     returns:
         :(dict): {'path': str, 'score': score}
     """
-    with open("hi-minmize.txt", 'a') as f:
-        print(f"hi from {Path(input_npz).name}", file=f)
-
-    pyrosetta = import_module("pyrosetta")
-    #if params['init_pyrosetta']:
-    pyrosetta.distributed.init(params['initargs'])
-
-    npz = np.load(input_npz, allow_pickle=True)
-    rst = rosetta_utils.generate_constraints(npz, **params)
-
-    model_id = params.get("model_id") or secrets.token_hex(16)
-    dumpfile = str(os.path.join(params['models'], "model_" + model_id + '.pdb')) 
-
-    prefix = f"[{Path(params['TDIR']).name}-{model_id}]"
     try:
-        centroid_score_function = pyrosetta.create_score_function('cen_std')
-    except:
-        snooze = random.randint(1, 10)
-        sleep(snooze)
-        centroid_score_function = pyrosetta.create_score_function('cen_std')
+        print(seq)
+        pyrosetta = import_module("pyrosetta")
+        #if params['init_pyrosetta']:
+        pyrosetta.distributed.init(params['initargs'])
 
-    overwrite = params['overwrite']
-    if Path(dumpfile).exists() and not overwrite:
-        pose = rosetta_utils.load_pose(dumpfile)
-        switch = pyrosetta.SwitchResidueTypeSetMover("centroid")
-        switch.apply(pose)
-        score = centroid_score_function(pose)
-        print(f"{prefix} (precomputed) Centroid score: {score}")
-        #print(f"{prefix} END MINIMIZE")
-        return {'path': dumpfile, 'score': score, 'model_id': model_id}
+        npz = np.load(input_npz, allow_pickle=True)
+        rst = rosetta_utils.generate_constraints(npz, **params)
 
-    #print(dumpfile, "does not exist")
-    #if params['cluster']:
-    print(f"{prefix} (minimize) seceding")
-    secede()
+        model_id = params.get("model_id") or secrets.token_hex(16)
+        dumpfile = str(os.path.join(params['models'], "model_" + model_id + '.pdb')) 
 
-    #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
-    #| setup ScoreFunctions and Mover objects |#
-    #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
-    sfdir = Path(params['score_function_dir'])
-    sfs   = [str(sfdir / sffn) for sffn in ['scorefxn.wts', 'scorefxn1.wts', 'scorefxn_vdw.wts', 'scorefxn_cart.wts']]
-    sf, sf1, sf_vdw, sf_cart = map(rosetta_utils.load_score_fxn_with_weights, sfs)     
+        prefix = f"[{Path(params['TDIR']).name}-{model_id}]"
+        try:
+            centroid_score_function = pyrosetta.create_score_function('cen_std')
+        except:
+            snooze = random.randint(1, 10)
+            sleep(snooze)
+            centroid_score_function = pyrosetta.create_score_function('cen_std')
+
+        overwrite = params['overwrite']
+        if Path(dumpfile).exists() and not overwrite:
+            pose = rosetta_utils.load_pose(dumpfile)
+            switch = pyrosetta.SwitchResidueTypeSetMover("centroid")
+            switch.apply(pose)
+            score = centroid_score_function(pose)
+            print(f"{prefix} (precomputed) Centroid score: {score}")
+            #print(f"{prefix} END MINIMIZE")
+            return {'path': dumpfile, 'score': score, 'model_id': model_id}
+
+        #print(dumpfile, "does not exist")
+        #if params['cluster']:
+        print(f"{prefix} (minimize) seceding")
+        secede()
+
+        #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
+        #| setup ScoreFunctions and Mover objects |#
+        #####=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-##### 
+        sfdir = Path(params['score_function_dir'])
+        sfs   = [str(sfdir / sffn) for sffn in ['scorefxn.wts', 'scorefxn1.wts', 'scorefxn_vdw.wts', 'scorefxn_cart.wts']]
+        sf, sf1, sf_vdw, sf_cart = map(rosetta_utils.load_score_fxn_with_weights, sfs)     
    
-    def _setup_movemap(bb=True, chi=False, jump=True):
-        mmap = pyrosetta.MoveMap()
-        mmap.set_bb(bb)
-        mmap.set_chi(chi)
-        mmap.set_jump(jump)
-        return mmap
+        def _setup_movemap(bb=True, chi=False, jump=True):
+            mmap = pyrosetta.MoveMap()
+            mmap.set_bb(bb)
+            mmap.set_chi(chi)
+            mmap.set_jump(jump)
+            return mmap
 
-    mmap = _setup_movemap()
+        mmap = _setup_movemap()
 
-    def _setup_minmover(fxn, 
-                        opt='lbfgs_armijo_nonmonotone',
-                        cutoff=0.0001,
-                        max_iter=1000, cartesian=None):
-        MinMover = pyrosetta.rosetta.protocols.minimization_packing.MinMover
-        # movemap, score function, optimizer, convegence cutoff
-        mover = MinMover(mmap, fxn, opt, cutoff, True)
-        mover.max_iter(max_iter)
-        if cartesian is not None:
-            mover.cartesian(cartesian)
-        return mover
+        def _setup_minmover(fxn, 
+                            opt='lbfgs_armijo_nonmonotone',
+                            cutoff=0.0001,
+                            max_iter=1000, cartesian=None):
+            MinMover = pyrosetta.rosetta.protocols.minimization_packing.MinMover
+            # movemap, score function, optimizer, convegence cutoff
+            mover = MinMover(mmap, fxn, opt, cutoff, True)
+            mover.max_iter(max_iter)
+            if cartesian is not None:
+                mover.cartesian(cartesian)
+            return mover
 
-    min_mover      = _setup_minmover(sf, max_iter=1000) 
-    min_mover1     = _setup_minmover(sf1, max_iter=1000) 
-    min_mover_vdw  = _setup_minmover(sf_vdw, max_iter=500)
-    min_mover_cart = _setup_minmover(sf_cart, cartesian=True, max_iter=1000)
-    repeat_mover   = pyrosetta.RepeatMover(min_mover, 3)
+        min_mover      = _setup_minmover(sf, max_iter=1000) 
+        min_mover1     = _setup_minmover(sf1, max_iter=1000) 
+        min_mover_vdw  = _setup_minmover(sf_vdw, max_iter=500)
+        min_mover_cart = _setup_minmover(sf_cart, cartesian=True, max_iter=1000)
+        repeat_mover   = pyrosetta.RepeatMover(min_mover, 3)
 
-    ## setup pose
-    pose =  rosetta_utils.load_pose(seq, from_sequence=True)
-    rosetta_utils.set_random_dihedral(pose)
-    rosetta_utils.remove_clash(sf_vdw, min_mover_vdw, pose)
+        ## setup pose
+        pose =  rosetta_utils.load_pose(seq, from_sequence=True)
+        rosetta_utils.set_random_dihedral(pose)
+        rosetta_utils.remove_clash(sf_vdw, min_mover_vdw, pose)
 
-    if params['mode'] == 0:
-        schedule = [1, 12, 24, len(seq)]
-    elif params['mode'] == 1:
-        schedule = [1, 24, len(seq)]
-    elif params['mode'] == 2:
-        schedule = [1, len(seq)]
+        if params['mode'] == 0:
+            schedule = [1, 12, 24, len(seq)]
+        elif params['mode'] == 1:
+            schedule = [1, 24, len(seq)]
+        elif params['mode'] == 2:
+            schedule = [1, len(seq)]
 
-    # mutate GLY -> ALA so every AA has a CB
-    with rosetta_utils.ContextMutator("G", "A", pose) as cm:
-        for interval in zip(schedule[:-1], schedule[1:]):
-            rosetta_utils.add_constraints(pose, rst, interval, seq, params['TDIR'])
-            repeat_mover.apply(pose)
-            min_mover_cart.apply(pose)
-            rosetta_utils.remove_clash(sf_vdw, min_mover1, pose)
+        # mutate GLY -> ALA so every AA has a CB
+        with rosetta_utils.ContextMutator("G", "A", pose) as cm:
+            for interval in zip(schedule[:-1], schedule[1:]):
+                rosetta_utils.add_constraints(pose, rst, interval, seq, params['TDIR'])
+                repeat_mover.apply(pose)
+                min_mover_cart.apply(pose)
+                rosetta_utils.remove_clash(sf_vdw, min_mover1, pose)
 
-    score = centroid_score_function(pose)
-    print(f"{prefix} (minimize) Centroid score: {score}")
-    pose.dump_pdb(dumpfile)
+        score = centroid_score_function(pose)
+        print(f"{prefix} (minimize) Centroid score: {score}")
+        pose.dump_pdb(dumpfile)
 
-    #print(f"{prefix} END MINIMIZE")
-    #if params['cluster']:
-    print(f"{prefix} (minimize) rejoining")
-    rejoin()
-    return {'path': dumpfile, 'score': score, 'model_id': model_id}
+        #print(f"{prefix} END MINIMIZE")
+        #if params['cluster']:
+        print(f"{prefix} (minimize) rejoining")
+        rejoin()
+        return {'path': dumpfile, 'score': score, 'model_id': model_id}
+    except Exception as e:
+        with open("except-minimize.txt", 'a') as f:
+            print(f"args={(seq, input_npz, params)}\nexception={e}", file=f)
 
 
 def relax(filename, input_npz, params):
@@ -478,6 +465,7 @@ def make_models(input_npz, output_dir, params):
 
 if __name__ == '__main__':
     args = arguments()
+    print(args.cluster, "is clsuter")
     if args.K > args.N:
         args.K = args.N
         warnings.warn(f"Relax models ({args.K}) > Centroid models ({args.N}). Setting them equal.",

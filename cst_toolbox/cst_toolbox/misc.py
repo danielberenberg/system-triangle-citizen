@@ -33,6 +33,14 @@ def exists(f):
         raise FileNotFoundError(f"{f} doesn't exist")
     return f 
 
+
+def nat(x):
+    """Natural number > 0 'type'"""
+    x = int(x)
+    if x <= 0:
+        raise TypeError(f"Expected natural number, not {x}")
+    return x
+
 class MockClient(object):
     def __init__(self, cluster, **client_params):
         self.cluster = cluster
