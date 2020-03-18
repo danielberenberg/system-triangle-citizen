@@ -324,7 +324,6 @@ if __name__ == '__main__':
             if not (Path(output_dir) / 'final.pdb').exists():
                 start = datetime.now()
                 big_mgr.add_work((input_npz, output_dir, params), submit=True)
-                final = make_models(input_npz, output_dir, params)
             else:
                 print(f"{input_npz} is finished!")
     
