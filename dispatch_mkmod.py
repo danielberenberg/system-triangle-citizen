@@ -134,9 +134,9 @@ class Factory(object):
 def get_cluster(partition=None, distributed=False):
     params = {}
     if distributed:
-        params['processes'] = 20
-        params['cores'] = 1 
-        params['memory'] = '160GB'
+        params['processes'] = 28
+        params['cores']     = 1 
+        params['memory']    = '224GB'
         params['queue'] = partition
         clust = SLURMCluster
     else:
