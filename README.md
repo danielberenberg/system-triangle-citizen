@@ -15,7 +15,7 @@ channels:
     - defaults
 ```
 - Install dependencies
-    - `conda install dask dask_jobqueue pyrosetta`
+    - `conda install -y dask dask_jobqueue pyrosetta`
 - Install the `cst_toolbox` - a short python module for interfacing with Rosetta and preparing constraints
     - `cd ${PATH_TO_MODEL_FROM_CONSTRAINTS} && pip install --upgrade ./cst_toolbox`
 
