@@ -18,7 +18,7 @@ Generates a 3D structural model of a protein sequence given structural constrain
 - Constraint matrices are read and applied as additions to the Rosetta score function. 
 - Starting from a structure roughly sampled from favored regions of Ramachandran space, a simple protocol
 of backbone and sidechain minimization is employed with respect to the provided constraints.
-- This protocol is influenced by the work done in Yang, et al (2020). 
+- This protocol is greatly influenced by the work done in Yang, et al (2020). 
 
 # Technical Details
 - Distributed and/or locally multithreaded.
