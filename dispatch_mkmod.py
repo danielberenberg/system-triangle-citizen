@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Model structure(s) with npz constraints - input constraints, output structure
-
 """
-#TODO(make this work for multiple npz inputs)
 
 # builtin
 import os
@@ -25,12 +23,9 @@ from functools import partial
 from importlib import import_module
 
 # third-party
-import cloudpickle  # not used here but needed for internal pickling magic
-import joblib
 from dask.distributed import (Client, LocalCluster, as_completed,\
                               get_client, secede, rejoin)
 from dask_jobqueue import SLURMCluster
-
 import numpy as np
 
 # local
@@ -218,7 +213,7 @@ def run_mkmod_command(cmd, outjson):
     return jstruct
     
 def make_models(input_npz, output_dir, params):
-    """Run the entire modeling workflow
+    """Run the entire modeling workflow, which basically consists of dispatching mkmod calls
     args:
         :input_npz (str or Path) - path to input npz file
         :output_dir (str or Path) - path to output directory
@@ -232,8 +227,6 @@ def make_models(input_npz, output_dir, params):
     #########
 
     tmpdir = WorkingDirectory(path=output_dir, cleanup=False).setup()
-    npz = np.load(input_npz, allow_pickle=True)
-    seq = "".join(np.atleast_1d(npz['sequence']))
     input_npz = str(input_npz)
 
     params['TDIR'] = output_dir
