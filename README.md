@@ -8,7 +8,7 @@ Generates a 3D structural model of a protein sequence given structural constrain
 - Create conda environment
     - `conda create -n cst python=3.6`
     - `conda activate cst`
-- Edit your `.condarc` (default located under `$HOME`) to include the graylab channel for PyRosetta
+- Edit your `.condarc` (default located under `$HOME`) to include the Gray Lab channel for PyRosetta
 ```yaml
 channels:
     - https://{USERNAME}:{PASSWORD}@conda.graylab.jhu.edu
