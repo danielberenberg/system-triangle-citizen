@@ -1,7 +1,7 @@
 # model-from-constraints
 Generates a 3D structural model of a protein sequence given structural constraints.
 - `extract_constraints.py` will generate constraint matrices from protein structure and save as a `.npz` file.
-- `make_model.py` will process constraint `.npz` files and generate models using them. 
+- `dispatch_mkmod.py` will process constraint `.npz` files and generate models using them. 
 
 
 # Table of Contents
