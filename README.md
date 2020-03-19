@@ -5,8 +5,19 @@ Generates a 3D structural model of a protein sequence given structural constrain
 - `cst_toolbox/cst_toolbox/mkmod.py` will generate a single decoy or relax a single model.
 
 # Install
+- Create conda environment
+    - `conda create -n cst python=3.6`
+    - `conda activate cst`
+- Edit your `.condarc` (default located under `$HOME`) to include the graylab channel for PyRosetta
+```yaml
+channels:
+    - https://{USERNAME}:{PASSWORD}@conda.graylab.jhu.edu
+    - defaults
+```
 - Install dependencies
-- `cd ${PATH_TO_MODEL_FROM_CONSTRAINTS} && pip install --upgrade ./cst_toolbox`
+    - `conda install dask dask_jobqueue pyrosetta`
+- Install the `cst_toolbox` - a short python module for interfacing with Rosetta and preparing constraints
+    - `cd ${PATH_TO_MODEL_FROM_CONSTRAINTS} && pip install --upgrade ./cst_toolbox`
 
 
 # Table of Contents
@@ -35,6 +46,7 @@ of backbone and sidechain minimization is employed with respect to the provided 
   - `dask-jobqueue`
   - `pyrosetta` (Requires Academic or Commercial license, see PyRosetta documentation)
     - Can install using `conda`
+
 
 
 # References and external links
