@@ -2,6 +2,11 @@
 Generates a 3D structural model of a protein sequence given structural constraints.
 - `extract_constraints.py` will generate constraint matrices from protein structure and save as a `.npz` file.
 - `dispatch_mkmod.py` will process constraint `.npz` files and generate models using them. 
+- `cst_toolbox/cst_toolbox/mkmod.py` will generate a single decoy or relax a single model.
+
+# Install
+- Install dependencies
+- `cd ${PATH_TO_MODEL_FROM_CONSTRAINTS} && pip install --upgrade ./cst_toolbox`
 
 
 # Table of Contents
