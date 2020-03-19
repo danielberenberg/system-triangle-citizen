@@ -33,7 +33,6 @@ of backbone and sidechain minimization is employed with respect to the provided 
 - `Python 3.6` dependencies:
   - `dask`
   - `dask-jobqueue`
-  - `joblib`    
   - `pyrosetta` (Requires Academic or Commercial license, see PyRosetta documentation)
     - Can install using `conda`
 
