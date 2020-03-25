@@ -1,8 +1,5 @@
 # model-from-constraints
 Generates a 3D structural model of a protein sequence given structural constraints.
-- `extract_constraints.py` will generate constraint matrices from protein structure and save as a `.npz` file.
-- `dispatch_mkmod.py` will process constraint `.npz` files and generate models using them. 
-- `cst_toolbox/cst_toolbox/mkmod.py` will generate a single decoy or relax a single model.
 
 # Table of Contents
 [model-from-constraints](#model-from-constraints)
@@ -29,8 +26,6 @@ channels:
 - Install the `cst_toolbox` - a short python module for interfacing with Rosetta and preparing constraints
     - `cd model-from-constraints/ && pip install --upgrade ./cst_toolbox`
 
-
-
 # Modeling Details
 - Structures are modeled using the `Rosetta` macromolecular modeling suite through the `PyRosetta` interface.
 - Constraint matrices are read and applied as additions to the Rosetta score function. 
@@ -40,7 +35,30 @@ of backbone and sidechain minimization is employed with respect to the provided 
 
 # Technical Details
 - Distributed and/or locally multithreaded.
-- Tested on SLURM clusters.
+- Tested on SLURM cluster.
+- `extract_constraints.py` will generate constraint matrices from protein structure and save as a `.npz` file.
+- `dispatch_mkmod.py` will process constraint `.npz` files and generate models using them. 
+- `cst_toolbox/cst_toolbox/mkmod.py` will generate a single decoy or relax a single model.
+
+Constraint matrices are square real-valued matrices of shape `(L, L)` where `L` is the length of the protein sequence and an element
+`v` occupying cell `(i,j)` denotes some constraint on the distance/angular orientation between residues `i` and `j`.
+
+Supported constraint types (all angles are in radians):
+ - `C𝛼` distances (symmetric).
+ - `C𝛽` distances (symmetric).
+ - `ω` dihedrals (symmetric), where `ω(i,j)` is the dihedral angle between residue `i` and `j`'s `C𝛼` atoms from the perspective of the the virtual axis connecting their `C𝛽` atoms.
+ - `θ` dihedrals (asymmetric), where `θ(i,j)` is the dihedral angle between residue `i`'s `N` atom and `j`'s `C𝛽` from the perspective of the virtual axis connecting `i`'s `C𝛼` to `j`'s `C𝛽`.  
+ - `𝜙` angles (asymmetric), where `𝜙(i,j)` is the angle between `residue` `i`'s `C𝛼` atom and residue `j`'s `C𝛽` atom from the reference point of `i`'s `C𝛽`. 
+
+ Constraint matrices are stored in a single `.npz` file containing the following keys (mapping to square constraint mats): 
+ - `dist_ca` - `C𝛼` 
+ - `dist_cb` - `C𝛽`  
+ - `omega` - `ω`
+ - `theta` - `θ`
+ - `phi`   - `𝜙`  
+ - `sequence` - the length `L` protein sequence
+
+ Each key must be present in the `.npz` file. Optionally, any constraint key (not `sequence`), may have value `None ` (e.g, `cst_npz['phi'] = None`).
 
 # Dependencies
 - `Python 3.6` dependencies:
@@ -48,7 +66,6 @@ of backbone and sidechain minimization is employed with respect to the provided 
   - `dask-jobqueue`
   - `pyrosetta` (Requires Academic or Commercial license, see PyRosetta documentation)
     - Can install using `conda`
-
 
 
 # References and external links

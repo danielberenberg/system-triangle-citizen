@@ -62,7 +62,7 @@ class ConstraintTypes(Enum):
                           symmetric=False)
 
     phi   = ConstraintInfo(u"\u03C6",
-                          "Angle CA {RES1} CB {RES1} CB {RES2} HARMONIC {VALUE} {ANGULAR_STD}",
+                          "Angle CA {RES1} CB {RES1} CB {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
                           symmetric=False)
 
 
