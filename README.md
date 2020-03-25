@@ -4,10 +4,20 @@ Generates a 3D structural model of a protein sequence given structural constrain
 - `dispatch_mkmod.py` will process constraint `.npz` files and generate models using them. 
 - `cst_toolbox/cst_toolbox/mkmod.py` will generate a single decoy or relax a single model.
 
+# Table of Contents
+[model-from-constraints](#model-from-constraints)
+- [Install](#install)
+- [Modeling Details](#modeling-details)
+- [Technical Details](#technical-details)
+- [Dependencies](#dependencies)
+- [References and external links](#references-and-external-links)
+
 # Install
 - Create conda environment
     - `conda create -n cst python=3.6`
     - `conda activate cst`
+- Clone the repository
+    - `git clone https://github.com/danielberenberg/model-from-constraints/`
 - Edit your `.condarc` (default located under `$HOME`) to include the Gray Lab channel for PyRosetta
 ```yaml
 channels:
@@ -17,15 +27,7 @@ channels:
 - Install dependencies
     - `conda install -y dask dask_jobqueue pyrosetta`
 - Install the `cst_toolbox` - a short python module for interfacing with Rosetta and preparing constraints
-    - `cd ${PATH_TO_MODEL_FROM_CONSTRAINTS} && pip install --upgrade ./cst_toolbox`
-
-
-# Table of Contents
-[model-from-constraints](#model-from-constraints)
-- [Modeling Details](#modeling-details)
-- [Technical Details](#technical-details)
-- [Dependencies](#dependencies)
-- [References and external links](#references-and-external-links)
+    - `cd model-from-constraints/ && pip install --upgrade ./cst_toolbox`
 
 
 
