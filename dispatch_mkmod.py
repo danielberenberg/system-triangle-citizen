@@ -41,7 +41,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def io_exists(arg, delim=' ', to_list=True):
     """Tuple of (exists, Path)"""
-    i, o = arg.strip().split(delim)
+    i, o = filter(None, arg.strip().split(delim))
     tup  = (exists(i), Path(o))
     return [tup] if to_list else tup 
 
@@ -249,7 +249,7 @@ def make_models(input_npz, output_dir, params):
     flags  = f"--constraint-types {csts} "
     #flags += f"--score-fxn-wts {params['score_function_dir']}"
     if params['overwrite']:
-        flags += "--overwrite"
+        flags += "--overwrite "
 
     command_format = command + configurables + flags 
 

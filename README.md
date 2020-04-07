@@ -23,8 +23,6 @@ channels:
 ```
 - Install dependencies
     - `conda install -y dask dask_jobqueue pyrosetta`
-- Install the `cst_toolbox` - a short python module for interfacing with Rosetta and preparing constraints
-    - `cd model-from-constraints/ && pip install --upgrade ./cst_toolbox`
 
 # Modeling Details
 - Structures are modeled using the `Rosetta` macromolecular modeling suite through the `PyRosetta` interface.

@@ -1,1 +1,0 @@
-recursive-include cst_toolbox/data/ *.wts *.json

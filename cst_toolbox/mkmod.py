@@ -15,8 +15,14 @@ from pathlib import Path
 import numpy as np
 
 # local
-from cst_toolbox import rosetta_utils
-from cst_toolbox.misc import exists, WorkingDirectory
+import site
+site.addsitedir(Path(__file__).parent)
+import misc
+import rosetta_utils
+
+exists = misc.exists
+nat    = misc.nat
+WorkingDirectory = misc.WorkingDirectory
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 

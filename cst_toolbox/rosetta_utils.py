@@ -18,7 +18,7 @@ import pyrosetta
 
 class DefaultParams(Enum):
     # These come from the constraints documentation in RosettaCommons ...
-    ATOM_DIST_STD = 2.0 
+    ATOM_DIST_STD = 0.5 
     ANGULAR_STD  = 0.35
     
     # Outside of a 20Å sphere there isn't much interaction
@@ -45,6 +45,14 @@ class ConstraintTypes(Enum):
                           "AtomPair CA {RES1} CA {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
                           symmetric=True)
 
+    distogram_ca = ConstraintInfo("p(C"+u"\u03B1)",
+                                 "AtomPair CA {RES1} CA {RES2} SPLINE TAG {SPLINE_FILE} {VALUE} 1.0 1.0 0.5",
+                                 symmetric=True)
+
+    distogram_cb = ConstraintInfo("p(C"+u"\u03B1)",
+                                 "AtomPair CB {RES1} CB {RES2} SPLINE TAG {SPLINE_FILE} {VALUE} 1.0 1.0 0.5",
+                                 symmetric=True)
+                                
     dist_ca = ConstraintInfo("C"+u"\u03B1",
                             "AtomPair CA {RES1} CA {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
                             symmetric=True)
@@ -64,6 +72,70 @@ class ConstraintTypes(Enum):
     phi   = ConstraintInfo(u"\u03C6",
                           "Angle CA {RES1} CB {RES1} CB {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
                           symmetric=False)
+
+def _handle_distogram(constraint_type, mats, **params):
+    """
+    Generate distance restraints from distogram tensor
+    ---
+    Tensor T should be shape (L, L, 37) where
+        T[:,:,36]      = No contact
+        T[:,:, i < 36] = 2.0A + i*0.5A contact resolution
+    """
+    return 
+    MEFF  =  0.0001
+    ALPHA =  1.57   
+    DCUT  = 19.5
+    PCUT  =  0.5
+    EBASE = -0.5
+
+    EREP  = [10.0,3.0,0.5]
+    DREP  = [ 0.0,2.0,3.5]
+
+
+    L = mats.shape[0]
+    X, Y = np.indices((L,L))
+    Z = np.argmax(mats, axis=-1) 
+
+    bins  = np.arange(2, 20, 0.5)
+    nbins = 36
+
+    background = (bins / DCUT)**ALPHA
+
+    
+    prob = np.sum(mats[:,:,5:], axis=-1)
+    bkgr = np.array((bins / DCUT)**ALPHA)
+    attr = -np.log((mats[:,:,5:]+MEFF) / (dist[:,:-1][:,:,None]*bkgr[None, None, :])) + EBASE
+    repu = np.maximum(attr[:,:,0], np.zeros((nres, nres))[:,:,None]+np.array(EREP)[None, None, :])
+    dist = np.concatenate([repu, attr], axis=-1)
+    i, j = np.where(prob > PCUT)
+    ########################################################
+    # dist: 0..20A
+    ########################################################
+    bins = np.array([4.25+DSTEP*i for i in range(32)])
+    prob = np.sum(dist[:,:,5:], axis=-1)
+    bkgr = np.array((bins/DCUT)**ALPHA)
+    attr = -np.log((dist[:,:,5:]+MEFF)/(dist[:,:,-1][:,:,None]*bkgr[None,None,:]))+EBASE
+    repul = np.maximum(attr[:,:,0],np.zeros((nres,nres)))[:,:,None]+np.array(EREP)[None,None,:]
+    dist = np.concatenate([repul,attr], axis=-1)
+    bins = np.concatenate([DREP,bins])
+    i,j = np.where(prob>PCUT)
+    prob = prob[i,j]
+    nbins = 35
+    step = 0.5
+    for a,b,p in zip(i,j,prob):
+        if b>a:
+            name=tmpdir.name+"/%d.%d.txt"%(a+1,b+1)
+            with open(name, "w") as f:
+                f.write('x_axis'+'\t%.3f'*nbins%tuple(bins)+'\n')
+                f.write('y_axis'+'\t%.3f'*nbins%tuple(dist[a,b])+'\n')
+                f.close()
+            rst_line = 'AtomPair %s %d %s %d SPLINE TAG %s 1.0 %.3f %.5f'%('CB',a+1,'CB',b+1,name,1.0,step)
+            rst['dist'].append([a,b,p,rst_line])
+    print("dist restraints:  %d"%(len(rst['dist'])))
+    
+    # 0.5A linearly spaced bins
+    DSTEP = 0.5
+    bins = np.array([4.25+DSTEP*i for i in range(32)])
 
 
 def _create_all_restraints(npz, **params):
@@ -88,7 +160,10 @@ def _create_all_restraints(npz, **params):
     Nres = npz['dist'].shape[0]
     for cst_type in ConstraintTypes:
         mat = npz.get(cst_type.name)
-        if not isinstance(mat, np.ndarray):
+        if mat is None or None in mat or mat.shape != (Nres, Nres):
+            print(f"No csts for {cst_type}")
+            continue
+        if cst_type in [ConstraintTypes.distogram_ca, ConstraintTypes.distogram_cb]:
             continue
         for ri, rj in zip(i, j):
             if not all((ri + 1 < Nres, rj + 1 < Nres)):
