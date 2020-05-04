@@ -354,6 +354,22 @@ def add_constraints(pose, rst, distance_interval, seq, tmpdir, nogly=False):
     constraints.constraint_file(cst_filename)
     constraints.add_constraints(True)
     constraints.apply(pose)
+
+
+def initialize_pose_by_rama(sequence):
+    """
+    args:
+        : sequence (str) - The primary structure of the pose
+    returns:
+        : (pyrosetta.Pose)
+    """
+    pose = pyrosetta.pose_from_sequence(sequence)
+
+    mover = pyrosetta.rosetta.protocols.backbone_movers.RandomizeByRamaPrePro()
+    mover.apply(pose)
+
+    return pose
+
     
 ##### trRosetta imports
 
