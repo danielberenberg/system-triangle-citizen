@@ -2,6 +2,7 @@
 __pycache__
 slurm*out
 *npz
+sars-cov-2
 
 .ipynb_checkpoints
 cluster_control_files

@@ -16,14 +16,6 @@ from scipy.spatial import distance
 
 import pyrosetta
 
-class DefaultParams(Enum):
-    # These come from the constraints documentation in RosettaCommons ...
-    ATOM_DIST_STD = 0.5 
-    ANGULAR_STD  = 0.35
-    
-    # Outside of a 20Å sphere there isn't much interaction
-    ATOM_DIST_MAX = 20.0
-
 
 class ConstraintInfo(object):
     def __init__(self, representation, formatter, symmetric=True):
@@ -45,97 +37,79 @@ class ConstraintTypes(Enum):
                           "AtomPair CA {RES1} CA {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
                           symmetric=True)
 
-    distogram_ca = ConstraintInfo("p(C"+u"\u03B1)",
-                                 "AtomPair CA {RES1} CA {RES2} SPLINE TAG {SPLINE_FILE} {VALUE} 1.0 1.0 0.5",
-                                 symmetric=True)
-
-    distogram_cb = ConstraintInfo("p(C"+u"\u03B1)",
-                                 "AtomPair CB {RES1} CB {RES2} SPLINE TAG {SPLINE_FILE} {VALUE} 1.0 1.0 0.5",
-                                 symmetric=True)
                                 
     dist_ca = ConstraintInfo("C"+u"\u03B1",
                             "AtomPair CA {RES1} CA {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
                             symmetric=True)
 
-    dist_cb = ConstraintInfo("C"+u"\u03B2",
-                            "AtomPair CB {RES1} CB {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
-                            symmetric=True)
-
-    omega = ConstraintInfo(u"\u03C9",
-                          "Dihedral CA {RES1} CB {RES1} CB {RES2} CA {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
-                          symmetric=True)
-
-    theta = ConstraintInfo(u"\u03B8",
-                          "Dihedral N {RES1} CA {RES1} CB {RES1} CB {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
-                          symmetric=False)
-
-    phi   = ConstraintInfo(u"\u03C6",
-                          "Angle CA {RES1} CB {RES1} CB {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
-                          symmetric=False)
-
-def _handle_distogram(constraint_type, mats, **params):
-    """
-    Generate distance restraints from distogram tensor
-    ---
-    Tensor T should be shape (L, L, 37) where
-        T[:,:,36]      = No contact
-        T[:,:, i < 36] = 2.0A + i*0.5A contact resolution
-    """
-    return 
-    MEFF  =  0.0001
-    ALPHA =  1.57   
-    DCUT  = 19.5
-    PCUT  =  0.5
-    EBASE = -0.5
-
-    EREP  = [10.0,3.0,0.5]
-    DREP  = [ 0.0,2.0,3.5]
+    #dist_cb = ConstraintInfo("C"+u"\u03B2",
+    #                        "AtomPair CB {RES1} CB {RES2} GAUSSIANFUNC {VALUE} {ATOM_DIST_STD} TAG",
+    #                        symmetric=True)
+    #omega = ConstraintInfo(u"\u03C9",
+    #                      "Dihedral CA {RES1} CB {RES1} CB {RES2} CA {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
+    #                      symmetric=True)
+    #theta = ConstraintInfo(u"\u03B8",
+    #                      "Dihedral N {RES1} CA {RES1} CB {RES1} CB {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
+    #                      symmetric=False)
+    #phi   = ConstraintInfo(u"\u03C6",
+    #                      "Angle CA {RES1} CB {RES1} CB {RES2} CIRCULARHARMONIC {VALUE} {ANGULAR_STD}",
+    #                      symmetric=False)
+    #distogram_ca = ConstraintInfo("p(C"+u"\u03B1)",
+    #                             "AtomPair CA {RES1} CA {RES2} SPLINE TAG {SPLINE_FILE} {VALUE} 1.0 1.0 0.5",
+    #                             symmetric=True)
+    #distogram_cb = ConstraintInfo("p(C"+u"\u03B1)",
+    #                             "AtomPair CB {RES1} CB {RES2} SPLINE TAG {SPLINE_FILE} {VALUE} 1.0 1.0 0.5",
+    #                             symmetric=True)
 
 
-    L = mats.shape[0]
-    X, Y = np.indices((L,L))
-    Z = np.argmax(mats, axis=-1) 
-
-    bins  = np.arange(2, 20, 0.5)
-    nbins = 36
-
-    background = (bins / DCUT)**ALPHA
-
+class DefaultParams(Enum):
+    ATOM_DIST_STD = 2.5 
+    ANGULAR_STD   = 1.35
     
-    prob = np.sum(mats[:,:,5:], axis=-1)
-    bkgr = np.array((bins / DCUT)**ALPHA)
-    attr = -np.log((mats[:,:,5:]+MEFF) / (dist[:,:-1][:,:,None]*bkgr[None, None, :])) + EBASE
-    repu = np.maximum(attr[:,:,0], np.zeros((nres, nres))[:,:,None]+np.array(EREP)[None, None, :])
-    dist = np.concatenate([repu, attr], axis=-1)
-    i, j = np.where(prob > PCUT)
-    ########################################################
-    # dist: 0..20A
-    ########################################################
-    bins = np.array([4.25+DSTEP*i for i in range(32)])
-    prob = np.sum(dist[:,:,5:], axis=-1)
-    bkgr = np.array((bins/DCUT)**ALPHA)
-    attr = -np.log((dist[:,:,5:]+MEFF)/(dist[:,:,-1][:,:,None]*bkgr[None,None,:]))+EBASE
-    repul = np.maximum(attr[:,:,0],np.zeros((nres,nres)))[:,:,None]+np.array(EREP)[None,None,:]
-    dist = np.concatenate([repul,attr], axis=-1)
-    bins = np.concatenate([DREP,bins])
-    i,j = np.where(prob>PCUT)
-    prob = prob[i,j]
-    nbins = 35
-    step = 0.5
-    for a,b,p in zip(i,j,prob):
-        if b>a:
-            name=tmpdir.name+"/%d.%d.txt"%(a+1,b+1)
-            with open(name, "w") as f:
-                f.write('x_axis'+'\t%.3f'*nbins%tuple(bins)+'\n')
-                f.write('y_axis'+'\t%.3f'*nbins%tuple(dist[a,b])+'\n')
-                f.close()
-            rst_line = 'AtomPair %s %d %s %d SPLINE TAG %s 1.0 %.3f %.5f'%('CB',a+1,'CB',b+1,name,1.0,step)
-            rst['dist'].append([a,b,p,rst_line])
-    print("dist restraints:  %d"%(len(rst['dist'])))
+    ATOM_DIST_MAX   = 10.0
+    SEQRES_DIST_MIN =  4 
+
+def _create_dist_restraints(npz, **params):
+    """
+    Generate constraints (those defined by ConstraintTypes enum) 
+    filtered by various conditions (the defaults of which are 
+    found in the DefaultParams enum).
     
-    # 0.5A linearly spaced bins
-    DSTEP = 0.5
-    bins = np.array([4.25+DSTEP*i for i in range(32)])
+    args:
+        :npz (dict-like) containing phi, theta, omega, dist[_ca|cb|] 
+    returns:
+        :(dict) - same keys mapping to Rosetta constraint lines
+    """
+    rst = {cst.name: [] for cst in ConstraintTypes}
+    
+    ATOM_DIST_STD   = params.get(DefaultParams.ATOM_DIST_STD.name)   or DefaultParams.ATOM_DIST_STD.value
+    ATOM_DIST_MAX   = params.get(DefaultParams.ATOM_DIST_MAX.name)   or DefaultParams.ATOM_DIST_MAX.value
+    SEQRES_DIST_MIN = params.get(DefaultParams.SEQRES_DIST_MIN.name) or DefaultParams.SEQRES_DIST_MIN.value
+    
+    Nres = npz[list(npz.keys())[0]].shape[0]
+
+    for cst_type in ConstraintTypes:
+        mat = npz.get(cst_type.name)
+        if mat is None or None in mat or mat.shape != (Nres, Nres):
+            continue
+
+        i, j = np.where(npz[cst_type.name] <= ATOM_DIST_MAX)
+        for ri, rj in zip(i, j):
+            if not all((ri + 1 < Nres, rj + 1 < Nres)):
+                continue
+            if abs(ri - rj) < SEQRES_DIST_MIN:
+                continue
+            if rj > ri:
+                val  = mat[ri, rj]
+                if not np.isnan(val):
+                    line = cst_type.value.format(RES1=ri+1,
+                                                 RES2=rj+1,
+                                                 VALUE=val,
+                                                 ATOM_DIST_STD=ATOM_DIST_STD) #,ANGULAR_STD=ANGULAR_STD) 
+                    rst[cst_type.name].append([ri, rj, val, line]) 
+    return rst
+
+        
 
 
 def _create_all_restraints(npz, **params):
@@ -181,9 +155,37 @@ def _create_all_restraints(npz, **params):
                         rst[cst_type.name].append([rj, ri, val, line]) 
     return rst
 
+@with_initializer(boot_pyrosetta)
+def add_constraints(pose, rst, position_interval, seq, tmpdir, nogly=False):
+    """Add constraints to a PyRosetta pose"""
+    lines = []
+    low, high = position_interval
+
+    # setup a function that evaluates whether an AA is a glycine
+    if nogly:
+        check_glycine = lambda aa: aa != 'G'
+    else:
+        check_glycine = lambda aa: True
+    for key in rst:
+        for resi, resj, _, line in rst[key]:
+            if low <= abs(resi - resj) < high and all(map(check_glycine, (seq[resi], seq[resj]))):
+                lines.append(line)
+    
+    # write out constraints
+    random.shuffle(lines)
+    Path(tmpdir / 'tmp').mkdir(exist_ok=True, parents=True)
+    with open(Path(tmpdir) / 'tmp' / f"minimize_{secrets.token_hex(16)}.cst", 'w') as cstfile:
+        print(*lines, sep='\n', file=cstfile)
+        cst_filename = str(cstfile.name)
+
+    constraints = pyrosetta.rosetta.protocols.constraint_movers.ConstraintSetMover()
+    constraints.constraint_file(cst_filename)
+    constraints.add_constraints(True)
+    constraints.apply(pose)
+
 def generate_constraints(npz, **params):
     """Generate all restraints"""
-    rst = _create_all_restraints(npz, **params)
+    rst = _create_dist_restraints(npz, **params)
     #for cst_type in ConstraintTypes:
     #    print(f"# {str(cst_type.value)} constraints: {len(rst[cst_type.name])}")
     return rst
@@ -327,36 +329,9 @@ def load_score_fxn_with_weights(filename):
     sf.add_weights_from_file(filename)
     return sf
 
+
 @with_initializer(boot_pyrosetta)
-def add_constraints(pose, rst, distance_interval, seq, tmpdir, nogly=False):
-    """Add constraints to a PyRosetta pose"""
-    lines = []
-    low, high = distance_interval
-
-    # setup a function that evaluates whether an AA is a glycine
-    if nogly:
-        check_glycine = lambda aa: aa != 'G'
-    else:
-        check_glycine = lambda aa: True
-    for key in rst:
-        for resi, resj, _, line in rst[key]:
-            if low <= abs(resi - resj) < high and all(map(check_glycine, (seq[resi], seq[resj]))):
-                lines.append(line)
-    
-    # write out constraints
-    random.shuffle(lines)
-    Path(tmpdir / 'tmp').mkdir(exist_ok=True, parents=True)
-    with open(Path(tmpdir) / 'tmp' / f"minimize_{secrets.token_hex(16)}.cst", 'w') as cstfile:
-        print(*lines, sep='\n', file=cstfile)
-        cst_filename = str(cstfile.name)
-
-    constraints = pyrosetta.rosetta.protocols.constraint_movers.ConstraintSetMover()
-    constraints.constraint_file(cst_filename)
-    constraints.add_constraints(True)
-    constraints.apply(pose)
-
-
-def initialize_pose_by_rama(sequence):
+def initialize_pose_from_rama(sequence):
     """
     args:
         : sequence (str) - The primary structure of the pose
@@ -419,3 +394,68 @@ def remove_clash(scorefxn, mover, pose):
         if float(scorefxn(pose)) < 10:
             break
         mover.apply(pose)
+
+#
+#def _handle_distogram(constraint_type, mats, **params):
+#    """
+#    Generate distance restraints from distogram tensor
+#    ---
+#    Tensor T should be shape (L, L, 37) where
+#        T[:,:,36]      = No contact
+#        T[:,:, i < 36] = 2.0A + i*0.5A contact resolution
+#    """
+#    return 
+#    MEFF  =  0.0001
+#    ALPHA =  1.57   
+#    DCUT  = 19.5
+#    PCUT  =  0.5
+#    EBASE = -0.5
+#
+#    EREP  = [10.0,3.0,0.5]
+#    DREP  = [ 0.0,2.0,3.5]
+#
+#
+#    L = mats.shape[0]
+#    X, Y = np.indices((L,L))
+#    Z = np.argmax(mats, axis=-1) 
+#
+#    bins  = np.arange(2, 20, 0.5)
+#    nbins = 36
+#
+#    background = (bins / DCUT)**ALPHA
+#
+#    
+#    prob = np.sum(mats[:,:,5:], axis=-1)
+#    bkgr = np.array((bins / DCUT)**ALPHA)
+#    attr = -np.log((mats[:,:,5:]+MEFF) / (dist[:,:-1][:,:,None]*bkgr[None, None, :])) + EBASE
+#    repu = np.maximum(attr[:,:,0], np.zeros((nres, nres))[:,:,None]+np.array(EREP)[None, None, :])
+#    dist = np.concatenate([repu, attr], axis=-1)
+#    i, j = np.where(prob > PCUT)
+#    ########################################################
+#    # dist: 0..20A
+#    ########################################################
+#    bins = np.array([4.25+DSTEP*i for i in range(32)])
+#    prob = np.sum(dist[:,:,5:], axis=-1)
+#    bkgr = np.array((bins/DCUT)**ALPHA)
+#    attr = -np.log((dist[:,:,5:]+MEFF)/(dist[:,:,-1][:,:,None]*bkgr[None,None,:]))+EBASE
+#    repul = np.maximum(attr[:,:,0],np.zeros((nres,nres)))[:,:,None]+np.array(EREP)[None,None,:]
+#    dist = np.concatenate([repul,attr], axis=-1)
+#    bins = np.concatenate([DREP,bins])
+#    i,j = np.where(prob>PCUT)
+#    prob = prob[i,j]
+#    nbins = 35
+#    step = 0.5
+#    for a,b,p in zip(i,j,prob):
+#        if b>a:
+#            name=tmpdir.name+"/%d.%d.txt"%(a+1,b+1)
+#            with open(name, "w") as f:
+#                f.write('x_axis'+'\t%.3f'*nbins%tuple(bins)+'\n')
+#                f.write('y_axis'+'\t%.3f'*nbins%tuple(dist[a,b])+'\n')
+#                f.close()
+#            rst_line = 'AtomPair %s %d %s %d SPLINE TAG %s 1.0 %.3f %.5f'%('CB',a+1,'CB',b+1,name,1.0,step)
+#            rst['dist'].append([a,b,p,rst_line])
+#    print("dist restraints:  %d"%(len(rst['dist'])))
+#    
+#    # 0.5A linearly spaced bins
+#    DSTEP = 0.5
+#    bins = np.array([4.25+DSTEP*i for i in range(32)])
