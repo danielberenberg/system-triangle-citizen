@@ -36,7 +36,7 @@ if not _DEFAULT_SCORE_FILES.is_dir():
 ROSETTA_LOGLEVEL = 100
 class DefaultArguments(Enum):
     """Default command line parameters"""
-    constraint_types   = ['dist', 'theta', 'omega', 'phi']
+    constraint_types   = ['dist_ca']
     score_function_dir = _DEFAULT_SCORE_FILES 
     overwrite          = False
     mode               = 0
@@ -49,6 +49,22 @@ def _setup_arguments(parser, defaults=True):
     parser.add_argument("--model_id")
 
     parser.add_argument("--relax", help="Input PDB file if relax mode", type=exists, dest='input_pdb')
+        
+    parser.add_argument("--ATOM_DIST_MAX",
+                        type=float,
+                        default=rosetta_utils.DefaultParams.ATOM_DIST_MAX.value,
+                        help="Maximum considered distance to generate constraints.")
+
+    parser.add_argument("--ATOM_DIST_STD",
+                        type=float,
+                        default=rosetta_utils.DefaultParams.ATOM_DIST_STD.value,
+                        help="Allowed jitter of residue distance estimates.")
+
+    parser.add_argument("--SEQRES_DIST_MIN", 
+                        type=int,
+                        default=rosetta_utils.DefaultParams.SEQRES_DIST_MIN.value,
+                        help="Minimum spacing between residue positions to generate pairwise constraint.")
+
 
     parser.add_argument("-M", "--mode", choices=[0, 1, 2], dest='mode',
                         type=int, help="Run mode: 0=short->medium->long, 1=short+medium->long, 2=short+medium+long")
@@ -152,9 +168,10 @@ def minimize(seq, rst, params):
     repeat_mover   = pyrosetta.RepeatMover(min_mover, 3)
 
     ## setup pose
-    pose =  rosetta_utils.load_pose(seq, from_sequence=True)
-    rosetta_utils.set_random_dihedral(pose)
-    rosetta_utils.remove_clash(sf_vdw, min_mover_vdw, pose)
+    pose = rosetta_utils.initialize_pose_from_rama(seq)
+    #pose =  rosetta_utils.load_pose(seq, from_sequence=True)
+    #rosetta_utils.set_random_dihedral(pose)
+    #rosetta_utils.remove_clash(sf_vdw, min_mover_vdw, pose)
 
     if params['mode'] == 0:
         schedule = [1, 12, 24, len(seq)]
